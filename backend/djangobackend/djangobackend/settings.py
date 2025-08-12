@@ -25,7 +25,19 @@ SECRET_KEY = 'django-insecure-s9=w3gbqi2zgcw3rq#@w^2&j1y%+-ln*72i9x#08abeub%7+s=
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['192.168.1.17', 'localhost', '127.0.0.1', '192.168.100.16']
+ALLOWED_HOSTS = ['192.168.1.17', 'localhost', '127.0.0.1', '192.168.100.16', '192.168.1.37']
+
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'your_email@gmail.com'
+EMAIL_HOST_PASSWORD = 'your_email_password_or_app_password'
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
 
 
 # Application definition
@@ -56,7 +68,8 @@ MIDDLEWARE = [
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     "http://192.168.100.16:19006",  # Metro bundler for web preview
-    "http://192.168.100.16",        # Direct IP without port
+    "http://192.168.100.16",
+     "http://192.168.1.37",            
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True

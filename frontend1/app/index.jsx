@@ -60,7 +60,6 @@ const styles = StyleSheet.create({
     marginTop:0,
     width: 300,
     height: 300,
-    resizeMode: 'contain',
   },
   card:{
     backgroundColor: '#f7d0d0ff',
@@ -69,9 +68,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e46565ff',
     marginBottom: 20,
-    shadowColor: '#f33434ff',
-    shadowOpacity: 5,
-    shadowRadius: 6,
+    boxShadow: '0px 3px 6px rgba(212, 0, 0, 1)',
     width: '90%',
   },
   textcard:{

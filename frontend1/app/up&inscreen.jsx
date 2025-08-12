@@ -42,7 +42,6 @@ const styles = StyleSheet.create({
   image: {
     width: 250,
     height: 250,
-    resizeMode: 'contain',
     marginBottom: 20,
   },
   text: {
@@ -59,23 +58,18 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
     alignItems: 'center',
-    shadowColor: '#d40000',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
+    boxShadow: '0px 4px 6px rgba(212,0,0,1)',
   },
   loginbutton: {
-     backgroundColor: '#d40000',
+    backgroundColor: '#d40000',
     paddingVertical: 12,
     paddingHorizontal:100,
     borderRadius: 25,
     marginTop: 20,
     marginBottom: 10,
     alignItems: 'center',
-    shadowColor: '#d40000',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
+    boxShadow: '0px 4px 6px rgba(212,0,0,1)',
+
   },
   buttontext: {
     color: '#fff9f8ff',

@@ -138,10 +138,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
     alignItems: 'center',
-    shadowColor: '#d40000',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
+    boxShadow: '0px 3px 6px rgba(212, 0, 0, 1)',
   },
   buttonText: {
     color: '#fff',

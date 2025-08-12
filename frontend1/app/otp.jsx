@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   View,
@@ -11,9 +11,9 @@ import {
   Platform
 } from 'react-native';
 
-export default function OtpScreen({ navigation }) {
+export default function OtpScreen() {
+  const { email } = useLocalSearchParams(); // ✅ Get email from params
   const [otp, setOtp] = useState('');
-  const email = 'user@example.com'; // ✅ Hardcoded for now, no route.params
 
   const handleVerifyOtp = async () => {
     if (!otp || otp.length !== 6) {
@@ -25,16 +25,16 @@ export default function OtpScreen({ navigation }) {
       const response = await fetch('http://<YOUR_BACKEND_URL>/verify-otp/', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json', // changed to JSON for backend ease
         },
-        body: `email=${encodeURIComponent(email)}&otp=${encodeURIComponent(otp)}`,
+        body: JSON.stringify({ email, otp }),
       });
 
       const data = await response.json();
 
       if (data.success) {
         Alert.alert('Success', 'OTP verified successfully!');
-        navigation.navigate('ResetPassword', { email });
+        router.push({ pathname: 'profile', params: { email } }); // pass email forward if needed
       } else {
         Alert.alert('Verification Failed', data.message || 'Incorrect OTP. Please try again.');
       }
@@ -62,7 +62,7 @@ export default function OtpScreen({ navigation }) {
         onChangeText={setOtp}
       />
 
-      <TouchableOpacity style={styles.button} onPress={() => router.push('profile')}>
+      <TouchableOpacity style={styles.button} onPress={handleVerifyOtp}>
         <Text style={styles.buttonText}>Verify OTP</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
@@ -107,10 +107,6 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     marginTop: 10,
     alignItems: 'center',
-    shadowColor: '#C40000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
     elevation: 3,
   },
   buttonText: {
