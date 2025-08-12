@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
@@ -59,43 +59,48 @@ export default function Registration() {
       confirmpassword: true,
     });
 
+    setLoading(true);
+
     try {
       await validationSchema.validate(formData, { abortEarly: false });
       setErrors({});
-       const response = await axios.post(
-      `${API_BASE_URL}/Registration/create`,   
 
-      const payload= {
+      const payload = {
         name: formData.name,
         email: formData.email,
         password: formData.password,
         confirmpassword: formData.confirmpassword,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+      };
+
+      const response = await axios.post(
+        `${API_BASE_URL}/donation/send-otp/`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (response.status === 201) {
+        Alert.alert("Success", "OTP sent to your email!");
+        router.push({ pathname: "/otp", params: { email: formData.email } });
       }
-    );
-        if (response.status === 201) {
-      Alert.alert("Success", "OTP sent to your email!");
-      router.push({ pathname: "/otp", params: { email: formData.email } });
+    } catch (err) {
+      if (err.response) {
+        Alert.alert("Error", err.response.data?.error || "Registration failed");
+      } else if (err.name === "ValidationError") {
+        const formErrors = {};
+        err.inner.forEach((e) => formErrors[e.path] = e.message);
+        setErrors(formErrors);
+      } else {
+        Alert.alert("Error", "Network error. Try again.");
+      }
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    if (err.response) {
-      Alert.alert("Error", err.response.data?.error || "Registration failed");
-    } else if (err.name === "ValidationError") {
-      const formErrors = {};
-      err.inner.forEach((e) => formErrors[e.path] = e.message);
-      setErrors(formErrors);
-    } else {
-      Alert.alert("Error", "Network error. Try again.");
-    }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
 
 
