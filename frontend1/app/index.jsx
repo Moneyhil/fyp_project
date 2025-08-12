@@ -34,9 +34,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e46565ff',
     marginBottom: 20,
-    shadowColor: '#f33434ff',
-    shadowOpacity: 5,
-    shadowRadius: 6,
+    boxShadow: '0px 3px 6px rgba(243, 53, 53, 1)',
     width: '90%',
   },
   qoutetext:{
@@ -86,9 +84,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 10,
-    shadowColor: '#4a58a5ff',
-    shadowOpacity: 5,
-    shadowRadius: 6,
+    boxShadow: '0px 3px 6px rgba(69, 122, 202, 1)',
   },
   buttonLabel:{
     color: '#0e0b0aff',

@@ -11,6 +11,8 @@ import {
   Platform
 } from 'react-native';
 
+const API_BASE_URL= 'http://192.168.100.16:8000';
+
 export default function OtpScreen() {
   const { email } = useLocalSearchParams(); // ✅ Get email from params
   const [otp, setOtp] = useState('');
@@ -22,21 +24,21 @@ export default function OtpScreen() {
     }
 
     try {
-      const response = await fetch('http://<YOUR_BACKEND_URL>/verify-otp/', {
-        method: 'POST',
+      const response = await fetch(`${API_BASE_URL}/donation/verify_otp`, {
+        method:'POST',
         headers: {
-          'Content-Type': 'application/json', // changed to JSON for backend ease
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, otp }),
       });
 
       const data = await response.json();
 
-      if (data.success) {
-        Alert.alert('Success', 'OTP verified successfully!');
+      if (response.ok) {
+        Alert.alert('Success', data.message ||'OTP verified successfully!');
         router.push({ pathname: 'profile', params: { email } }); // pass email forward if needed
       } else {
-        Alert.alert('Verification Failed', data.message || 'Incorrect OTP. Please try again.');
+        Alert.alert('Verification Failed', data.error || data.message ||  'Incorrect OTP. Please try again.');
       }
     } catch (error) {
       console.error(error);
