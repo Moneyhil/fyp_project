@@ -15,6 +15,7 @@ from django.contrib.auth.hashers import make_password
 import secrets
 from django_ratelimit.decorators import ratelimit
 
+
 def home(request):
     return HttpResponse("Welcome to the Blood Donation App API")
 
@@ -44,9 +45,8 @@ def signup(request):
     if serializer.is_valid():
         user = serializer.save()
         raw_otp = f'{secrets.randbelow(1000000):06d}'  # Secure OTP
-        user.set_otp(raw_otp)
-
         try:
+            user.set_otp(raw_otp)
             send_mail(
                 'Your OTP Code',
                 f'Your OTP is {raw_otp}. Valid for 5 minutes.',
@@ -59,7 +59,11 @@ def signup(request):
                 "user_id": user.id,
                 "email": user.email
             }, status=status.HTTP_201_CREATED)
-        except Exception as e:
+        except ValueError as e:
+            # Handle rate limit or validation errors from set_otp
+            return Response({"error": str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        except Exception:
+            # Any other failure should not leave a half-registered user in the system
             user.delete()
             return Response({"error": "Failed to send OTP"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

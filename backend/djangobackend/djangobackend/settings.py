@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,9 +27,11 @@ SECRET_KEY = 'django-insecure-s9=w3gbqi2zgcw3rq#@w^2&j1y%+-ln*72i9x#08abeub%7+s=
 DEBUG = True
 
 ALLOWED_HOSTS = ['192.168.1.17', 'localhost', '127.0.0.1', '192.168.100.16', '192.168.1.37']
+if DEBUG:
+    ALLOWED_HOSTS.append('testserver')
 
 
-
+# Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
@@ -37,7 +40,10 @@ EMAIL_HOST_USER = 'your_email@gmail.com'
 EMAIL_HOST_PASSWORD = 'your_email_password_or_app_password'
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-
+# Use console email backend during development to avoid SMTP errors
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    DEFAULT_FROM_EMAIL = 'noreply@example.local'
 
 
 # Application definition
@@ -98,17 +104,24 @@ WSGI_APPLICATION = 'djangobackend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'db_db',
-        'USER': 'root',
-        'PASSWORD': 'admin',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
+if os.getenv('USE_SQLITE', '1') == '1':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
-
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': 'db_db',
+            'USER': 'root',
+            'PASSWORD': 'admin',
+            'HOST': '127.0.0.1',
+            'PORT': '3306',
+        }
+    }
 
 
 # Password validation
@@ -153,5 +166,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
-    'DEFUALT_RENDERER_CLASSES':('rest_framework.renderers.JSONRenderer',)
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    )
 }
