@@ -38,4 +38,4 @@ class RegistrationSerializer(serializers.ModelSerializer):
             [user.email],
             fail_silently=False,
         )
-        return user
+        return Registration.objects.create(**validated_data)
