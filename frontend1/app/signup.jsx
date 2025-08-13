@@ -70,7 +70,6 @@ export default function Registration() {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        confirmpassword: formData.confirmpassword,
       }
       const response = await axios.post(
         `${API_BASE_URL}/donation/send-otp/`,

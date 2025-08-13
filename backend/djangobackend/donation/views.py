@@ -1,7 +1,7 @@
 from django.http import HttpResponse
 from rest_framework.generics import ListAPIView, CreateAPIView
+from rest_framework.views import APIView
 from .models import Admin1, Registration
-from .serializers import Admin1Serializer, RegistrationSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -14,6 +14,13 @@ import datetime
 from django.contrib.auth.hashers import make_password
 import secrets
 from django_ratelimit.decorators import ratelimit
+from rest_framework_simplejwt.tokens import RefreshToken
+from .serializers import (
+    Admin1Serializer, 
+    RegistrationSerializer, 
+    LoginSerializer, 
+    OTPVerifySerializer)
+
 
 def home(request):
     return HttpResponse("Welcome to the Blood Donation App API")
@@ -36,12 +43,10 @@ class RegistrationList(ListAPIView):
     serializer_class = RegistrationSerializer
 
 
-from django_ratelimit.decorators import ratelimit
-
 @ratelimit(key='ip', rate='3/m')  # Limit to 3 requests per minute
 @api_view(['POST'])
 @permission_classes([AllowAny])
-def signup(request):
+def send_otp(request):
     email = request.data.get('email')
     if not email:
         return Response({"error": "Email is required"}, status=400)
@@ -67,32 +72,55 @@ def signup(request):
         return Response({"error": "Failed to send OTP"}, status=500)
 
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def verify_otp(request):
-    """
-    Verify OTP. Post body: { "user_id": <id>, "otp": "123456" } or { "email": "<email>", "otp": "123456" }
-    """
-    user_id = request.data.get('user_id')
-    email = request.data.get('email')
-    otp = request.data.get('otp')
+class VerifyOTPView(APIView):
+    permission_classes = [AllowAny]
 
-    if not otp:
-        return Response({"error": "OTP is required"}, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request):
+        serializer = OTPVerifySerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data["user"]
+            otp = serializer.validated_data["otp"]
 
-    try:
-        if user_id:
-            user = Registration.objects.get(pk=user_id)
-        elif email:
-            user = Registration.objects.get(email=email)
-        else:
-            return Response({"error": "Provide user_id or email"}, status=status.HTTP_400_BAD_REQUEST)
-    except Registration.DoesNotExist:
-        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            # Mark user as verified
+            user.is_verified = True
+            user.save()
 
-    ok, msg = user.verify_otp(otp)
-    if ok:
-        return Response({"message": "OTP verified successfully"}, status=status.HTTP_200_OK)
-    else:
-        return Response({"error": msg}, status=status.HTTP_400_BAD_REQUEST)
+            # Delete OTP after successful verification
+            otp.delete()
+
+            # Auto-login after verification
+            refresh = RefreshToken.for_user(user)
+
+            return Response({
+                "message": "OTP verified successfully",
+                "token": str(refresh.access_token),
+                "user": {
+                    "id": user.id,
+                    "name": user.first_name,
+                    "email": user.email
+                }
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class LoginView(APIView):
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            refresh = RefreshToken.for_user(user)
+
+            return Response({
+                "message": "Login successful",
+                "token": str(refresh.access_token),
+                "user": {
+                    "id": user.id,
+                    "name": user.first_name,
+                    "email": user.email
+                }
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 

@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
 from django.utils import timezone
-import datetime
+from datetime import timedelta, datetime
 import hashlib  # For faster OTP hashing
 
 # Admin model
@@ -56,3 +56,27 @@ class Registration(models.Model):
     class Meta:
         verbose_name = "User Registration"
         verbose_name_plural = "User Registrations"
+
+
+
+class login(models.Model):
+    email = models.EmailField(unique=True)
+    is_verified = models.BooleanField(default=False)  # after OTP verification
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['']  # keep username optional if not needed
+
+    def __str__(self):
+        return self.email
+
+
+class OTP(models.Model):
+    user = models.ForeignKey(login, on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timedelta(minutes=5)  # 5 min expiry
+
+    def __str__(self):
+        return f"{self.user.email} - {self.code}"
