@@ -36,33 +36,35 @@ class RegistrationList(ListAPIView):
     serializer_class = RegistrationSerializer
 
 
-@ratelimit(key='ip', rate='3/m')
+from django_ratelimit.decorators import ratelimit
+
+@ratelimit(key='ip', rate='3/m')  # Limit to 3 requests per minute
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def signup(request):
-    serializer = RegistrationSerializer(data=request.data)
-    if serializer.is_valid():
-        user = serializer.save()
-        raw_otp = f'{secrets.randbelow(1000000):06d}'  # Secure OTP
-        user.set_otp(raw_otp)
+    email = request.data.get('email')
+    if not email:
+        return Response({"error": "Email is required"}, status=400)
 
-        try:
-            send_mail(
-                'Your OTP Code',
-                f'Your OTP is {raw_otp}. Valid for 5 minutes.',
-                settings.DEFAULT_FROM_EMAIL,
-                [user.email],
-                fail_silently=False
-            )
-            return Response({
-                "message": "OTP sent to email.",
-                "user_id": user.id,
-                "email": user.email
-            }, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            user.delete()
-            return Response({"error": "Failed to send OTP"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        user = Registration.objects.get(email=email)
+    except Registration.DoesNotExist:
+        return Response({"error": "User not found"}, status=404)
+
+    raw_otp = f'{secrets.randbelow(1000000):06d}'  # Secure OTP
+    user.set_otp(raw_otp)
+
+    try:
+        send_mail(
+            'Your OTP Code',
+            f'Your OTP is {raw_otp}. Valid for 5 minutes.',
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False
+        )
+        return Response({"message": "OTP sent successfully"}, status=200)
+    except Exception as e:
+        return Response({"error": "Failed to send OTP"}, status=500)
 
 
 @api_view(['POST'])

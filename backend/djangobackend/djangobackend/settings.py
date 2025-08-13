@@ -26,6 +26,9 @@ SECRET_KEY = 'django-insecure-s9=w3gbqi2zgcw3rq#@w^2&j1y%+-ln*72i9x#08abeub%7+s=
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+RATELIMIT_ENABLE = True 
+
+
 ALLOWED_HOSTS = ['192.168.1.17', 'localhost', '127.0.0.1', '192.168.100.16', '192.168.1.37']
 if DEBUG:
     ALLOWED_HOSTS.append('testserver')
