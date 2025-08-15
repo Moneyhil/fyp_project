@@ -94,7 +94,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
     alignItems: 'center',
-    boxShadow: '0px 3px 6px rgba(212, 0, 0, 1)',
+    shadowColor: '#d40000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 5,
   },
   buttonText: {
     color: '#fff', 

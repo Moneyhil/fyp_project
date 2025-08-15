@@ -11,7 +11,8 @@ export default function BloodDonationApp() {
         <Text style={styles.appname}>"Welcome to the Blood Donation App"</Text>
         <Image
           source={require('../assets/images/mandw.png')} 
-          style={styles.image} />
+          style={styles.image}
+          resizeMode="contain" />
         <View style={styles.card}>
           <Text style={styles.textcard}>"Becuase someone, Somewhere, is counting on you."</Text>
          
@@ -34,7 +35,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e46565ff',
     marginBottom: 20,
-    boxShadow: '0px 3px 6px rgba(243, 53, 53, 1)',
+    shadowColor: '#f33535',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 5,
     width: '90%',
   },
   qoutetext:{
@@ -66,7 +74,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e46565ff',
     marginBottom: 20,
-    boxShadow: '0px 3px 6px rgba(212, 0, 0, 1)',
+    shadowColor: '#d40000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 5,
     width: '90%',
   },
   textcard:{
@@ -84,7 +99,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 10,
-    boxShadow: '0px 3px 6px rgba(69, 122, 202, 1)',
+    shadowColor: '#457acaff',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 5,
   },
   buttonLabel:{
     color: '#0e0b0aff',

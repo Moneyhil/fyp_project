@@ -1,50 +1,65 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
-import axios from 'axios';
-import * as Yup from 'yup';
+import React, { useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
+import { useRouter } from "expo-router";
+import axios from "axios";
+import * as Yup from "yup";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Registration() {
   const router = useRouter();
-
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmpassword: '',
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
   });
-
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
-  const API_BASE_URL = "http://192.168.100.16:8000"; 
 
+  const API_BASE_URL = "http://192.168.100.16:8000";
+
+  // Validation schema
   const validationSchema = Yup.object().shape({
     name: Yup.string()
-    .max(50, 'Name must be at most 50 characters').required('Name is required'),
-    email: Yup.string().email('Invalid email format').required('Email is required'),
+      .trim()
+      .min(2, "Name must be at least 2 characters")
+      .max(50, "Name must be at most 50 characters")
+      .matches(/^[a-zA-Z\s]+$/, "Name can only contain letters and spaces")
+      .required("Full name is required"),
+    
+    email: Yup.string()
+      .trim()
+      .email("Please enter a valid email address")
+      .max(50, "Email must be at most 50 characters")
+      .required("Email address is required"),
+    
     password: Yup.string()
-    .required('Password is required')
-    .min(8, 'Password must be at least 8 characters')
-    .matches(/[a-zA-Z]/, 'Password must contain at least one letter')
-    .matches(/\d/, 'Password must contain at least one number'),
-    confirmpassword: Yup.string()
-      .oneOf([Yup.ref('password'), null], 'Passwords must match')
-      .required('Confirm password is required'),
+      .min(8, "Password must be at least 8 characters")
+      .max(50, "Password must be at most 50 characters")
+      .matches(/[a-z]/, "Password must contain at least one lowercase letter")
+      .matches(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .matches(/\d/, "Password must contain at least one number")
+      .matches(/[!@#$%^&*(),.?":{}|<>]/, "Password must contain at least one special character")
+      .required("Password is required"),
+    
+    confirmPassword: Yup.string()
+      .oneOf([Yup.ref("password"), null], "Passwords must match")
+      .required("Please confirm your password"),
   });
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (touched[field]) {
       validationSchema
         .validateAt(field, { ...formData, [field]: value })
-        .then(() => setErrors(prev => ({ ...prev, [field]: '' })))
-        .catch(err => setErrors(prev => ({ ...prev, [field]: err.message })));
+        .then(() => setErrors((prev) => ({ ...prev, [field]: "" })))
+        .catch((err) => setErrors((prev) => ({ ...prev, [field]: err.message })));
     }
   };
 
   const handleBlur = (field) => {
-    setTouched(prev => ({ ...prev, [field]: true }));
+    setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
   const getInputStyle = (field) => {
@@ -52,56 +67,113 @@ export default function Registration() {
   };
 
   const handleSignup = async () => {
-    setTouched({
-      name: true,
-      email: true,
-      password: true,
-      confirmpassword: true,
-    });
-    
+    setTouched({ name: true, email: true, password: true, confirmPassword: true });
     setLoading(true);
 
     try {
       await validationSchema.validate(formData, { abortEarly: false });
       setErrors({});
-   
 
-      const payload = {
-        name: formData.name,
-        email: formData.email,
+      const registrationPayload = {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
-      }
-      const response = await axios.post(
-        `${API_BASE_URL}/donation/send-otp/`,
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      }
-    );
-      if (response.status === 201) {
-      Alert.alert("Success", "OTP sent to your email!");
-      router.push({ pathname: "/otp", params: { email: formData.email } });
-    }
-  }
-   catch (err) {
-    if (err.response) {
-      Alert.alert("Error", err.response.data?.error || "Registration failed");
-    } else if (err.name === "ValidationError") {
-      const formErrors = {};
-      err.inner.forEach((e) => formErrors[e.path] = e.message);
-      setErrors(formErrors);
-    } else {
-      Alert.alert("Error", "Network error. Try again.");
-    }
-  } finally {
-    setLoading(false);
-  }
-};
+        confirmpassword: formData.confirmPassword,
+      };
 
+      console.log("Sending registration payload:", registrationPayload);
 
+      const registrationResponse = await axios.post(
+        `${API_BASE_URL}/donation/Registration/create/`,
+        registrationPayload,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          timeout: 30000,
+        }
+      );
+
+      console.log("Registration response:", registrationResponse.data);
+
+      if (registrationResponse.status === 201) {
+        await AsyncStorage.setItem("pendingVerificationEmail", formData.email.trim().toLowerCase());
+        
+        Alert.alert(
+          "Registration Successful!",
+          "Please check your email for the verification code.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.push({ 
+                pathname: "/otp", 
+                params: { email: formData.email.trim().toLowerCase() } 
+              })
+            }
+          ]
+        );
+      } else {
+        throw new Error("Registration failed");
+      }
+
+    } catch (error) {
+      console.error("Signup error:", error);
+      
+      if (error.name === "ValidationError") {
+        const formErrors = {};
+        error.inner.forEach((e) => {
+          formErrors[e.path] = e.message;
+        });
+        setErrors(formErrors);
+        Alert.alert("Validation Error", "Please fix the errors in the form.");
+      } else if (error.response) {
+        const errorData = error.response.data;
+        console.log("Error response data:", errorData);
+        
+        let errorMessage = "Registration failed. Please try again.";
+        
+        if (errorData) {
+          if (typeof errorData === "string") {
+            errorMessage = errorData;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (typeof errorData === "object") {
+            const fieldErrors = Object.keys(errorData).map(key => errorData[key]).flat();
+            errorMessage = fieldErrors.join(", ");
+          }
+        }
+        
+        if (error.response.status === 400) {
+          if (errorMessage.toLowerCase().includes("email")) {
+            setErrors(prev => ({ ...prev, email: "This email is already registered" }));
+          } else if (errorMessage.toLowerCase().includes("password")) {
+            setErrors(prev => ({ ...prev, password: "Password requirements not met" }));
+          } else {
+            Alert.alert("Invalid Data", errorMessage);
+          }
+        } else if (error.response.status === 409) {
+          setErrors(prev => ({ ...prev, email: "This email is already registered" }));
+        } else if (error.response.status === 404) {
+          Alert.alert("Service Unavailable", "Registration service is currently unavailable. Please try again later.");
+        } else {
+          Alert.alert("Server Error", errorMessage);
+        }
+      } else if (error.code === "ECONNABORTED") {
+        Alert.alert("Connection Timeout", "Request timed out. Please check your internet connection and try again.");
+      } else if (error.code === "NETWORK_ERROR" || error.message.includes("Network Error")) {
+        Alert.alert("Network Error", "Please check your internet connection and try again.");
+      } else {
+        Alert.alert("Error", "An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -112,9 +184,10 @@ export default function Registration() {
         <TextInput
           placeholder="Enter your full name"
           value={formData.name}
-          onChangeText={text => handleChange('name', text)}
-          onBlur={() => handleBlur('name')}
-          style={getInputStyle('name')}
+          onChangeText={(text) => handleChange("name", text)}
+          onBlur={() => handleBlur("name")}
+          style={getInputStyle("name")}
+          autoCapitalize="words"
         />
         {touched.name && errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
 
@@ -122,9 +195,9 @@ export default function Registration() {
         <TextInput
           placeholder="Enter your email"
           value={formData.email}
-          onChangeText={text => handleChange('email', text)}
-          onBlur={() => handleBlur('email')}
-          style={getInputStyle('email')}
+          onChangeText={(text) => handleChange("email", text)}
+          onBlur={() => handleBlur("email")}
+          style={getInputStyle("email")}
           keyboardType="email-address"
           autoCapitalize="none"
         />
@@ -132,33 +205,33 @@ export default function Registration() {
 
         <Text style={styles.label}>Password</Text>
         <TextInput
-          placeholder="********"
+          placeholder="Create a strong password"
           value={formData.password}
-          onChangeText={text => handleChange('password', text)}
-          onBlur={() => handleBlur('password')}
-          style={getInputStyle('password')}
+          onChangeText={(text) => handleChange("password", text)}
+          onBlur={() => handleBlur("password")}
+          style={getInputStyle("password")}
           secureTextEntry
         />
         {touched.password && errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
         <Text style={styles.label}>Confirm Password</Text>
         <TextInput
-          placeholder="********"
-          value={formData.confirmpassword}
-          onChangeText={text => handleChange('confirmpassword', text)}
-          onBlur={() => handleBlur('confirmpassword')}
-          style={getInputStyle('confirmpassword')}
+          placeholder="Confirm your password"
+          value={formData.confirmPassword}
+          onChangeText={(text) => handleChange("confirmPassword", text)}
+          onBlur={() => handleBlur("confirmPassword")}
+          style={getInputStyle("confirmPassword")}
           secureTextEntry
         />
-        {touched.confirmpassword && errors.confirmpassword && <Text style={styles.errorText}>{errors.confirmpassword}</Text>}
+        {touched.confirmPassword && errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
 
         <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? 'Processing...' : 'Sign Up'}</Text>
+          <Text style={styles.buttonText}>{loading ? "Processing..." : "Sign Up"}</Text>
         </TouchableOpacity>
 
         <Text style={styles.text}>
-          Already have an account?{' '}
-          <Text style={styles.Link} onPress={() => router.push('/signin')}>
+          Already have an account?{" "}
+          <Text style={styles.Link} onPress={() => router.push("/signin")}>
             Log In
           </Text>
         </Text>
@@ -170,61 +243,77 @@ export default function Registration() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     padding: 25,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   heading: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#c00808ff',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#c00808ff",
+    textAlign: "center",
     marginBottom: 20,
   },
   label: {
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 5,
     marginTop: 10,
   },
   input: {
-    backgroundColor: '#f2f2f2',
+    backgroundColor: "#f2f2f2",
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 10,
     fontSize: 14,
     marginBottom: 5,
     borderWidth: 1,
-    borderColor: '#f2f2f2',
+    borderColor: "#f2f2f2",
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   inputError: {
-    borderColor: '#ff0000',
+    borderColor: "#ff0000",
   },
   errorText: {
-    color: '#ff0000',
+    color: "#ff0000",
     fontSize: 12,
     marginBottom: 5,
   },
   button: {
-    backgroundColor: '#d40000',
+    backgroundColor: "#d40000",
     paddingVertical: 12,
     borderRadius: 25,
     marginTop: 20,
     marginBottom: 10,
-    alignItems: 'center',
+    alignItems: "center",
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: "#fff",
+    fontWeight: "bold",
     fontSize: 16,
   },
   text: {
-    textAlign: 'center',
-    color: '#444',
+    textAlign: "center",
+    color: "#444",
     marginTop: 10,
   },
   Link: {
-    color: '#0000ff',
-    textDecorationLine: 'underline',
+    color: "#0000ff",
+    textDecorationLine: "underline",
   },
 });

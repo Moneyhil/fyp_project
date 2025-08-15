@@ -12,7 +12,7 @@ export default function HomeScreen() {
 
       {/* Buttons */}
       <TouchableOpacity style={styles.button} onPress={() => router.push('/profile')}>
-        <Text style={styles.buttonText}>Donor's Profile</Text>
+        <Text style={styles.buttonText}>Profile</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.button} onPress={() => router.push('/searchscreen')}>
@@ -21,10 +21,6 @@ export default function HomeScreen() {
 
       <TouchableOpacity style={styles.button} onPress={() => router.push('/about')}>
         <Text style={styles.buttonText}>About Us</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/setting')}>
-        <Text style={styles.buttonText}>Setting</Text>
       </TouchableOpacity>
     </View>
   );
@@ -44,7 +40,13 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     alignItems: 'center',
     elevation: 5,
-    boxShadow: '0px 3px 6px rgba(44, 1, 1, 1)', 
+    shadowColor: '#2c0101',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
   },
   headerText: {
     color: '#fff',
@@ -55,12 +57,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffebee',
     borderWidth: 1,
     borderColor: '#e53935',
-    paddingVertical: 15,
+    paddingVertical: 50,
     paddingHorizontal: 50,
     borderRadius: 10,
     marginVertical: 10,
     width: '80%',
     alignItems: 'center',
+    shadowColor: '#b30b0b',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 5,
   },
   buttonText: {
     color: '#d32f2f',

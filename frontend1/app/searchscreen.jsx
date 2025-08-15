@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { useNavigation } from '@react-navigation/native';
+import { router } from 'expo-router';
 
 export default function SearchDonorsScreen() {
-  const navigation = useNavigation();
   const [bloodOpen, setBloodOpen] = useState(false);
   const [bloodValue, setBloodValue] = useState(null);
   const [bloodItems, setBloodItems] = useState([
@@ -21,7 +20,7 @@ export default function SearchDonorsScreen() {
   const [cityOpen, setCityOpen] = useState(false);
   const [cityValue, setCityValue] = useState(null);
   const [cityItems, setCityItems] = useState([
-    { label: 'Karachi', value: 'Karachi' },
+    { label: 'Shiekhupura', value: 'Shiekhupura' },
     { label: 'Lahore', value: 'Lahore' },
     { label: 'Islamabad', value: 'Islamabad' },
     { label: 'Faisalabad', value: 'Faisalabad' },
@@ -63,9 +62,8 @@ export default function SearchDonorsScreen() {
 
         <TouchableOpacity
           style={styles.searchButton}
-          onPress={() => navigation.navigate('resultsScreen')}
-        >
-          <Text style={styles.searchButtonText}>Search</Text>
+          onPress={() => router.push('/resultscreen')}
+        ><Text style={styles.searchButtonText}>Search</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -74,10 +72,11 @@ export default function SearchDonorsScreen() {
 
 const styles = StyleSheet.create({
    container: { 
-    flex: 1, 
-    backgroundColor: '#fff', 
-    alignItems: 'center', 
-    paddingTop: 50   
+    padding: 25,
+    justifyContent: "center",
+    alignItems: 'center',
+    backgroundColor: "#fff",
+    flexGrow: 1 
    },
    title: { 
     fontSize: 26, 
@@ -86,7 +85,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#d40000', 
     width: '100%', 
     textAlign: 'center', 
-    paddingVertical: 15
+    paddingVertical: 20,
    },
    subtitle: { 
     fontSize: 14, 
@@ -95,35 +94,41 @@ const styles = StyleSheet.create({
     color: '#555' 
    },
    Title: { 
-    fontSize: 20, 
+    alignItems: 'center',
+    fontSize: 25,
     fontWeight: 'bold', 
     color: '#d40000', 
     marginBottom: 20 
    },
    label: { 
-    fontSize: 14, 
-    color: '#333', 
-    marginTop: 10, 
-    marginBottom: 5, 
-    alignSelf: 'flex-start'  
+    fontWeight: "bold",
+    marginTop: 10,
+    marginBottom: 5,
+    color: "#333",  
    },
    dropdown: { 
-    borderColor: '#f7f1f1ff', 
-    borderWidth: 1, 
-    borderRadius: 8, 
-    marginBottom: 10 
+    backgroundColor: "#f2f2f2",
+    marginBottom: 5,
+    borderWidth: 1,
+    borderColor: "#f2f2f2", 
    },
    dropdownContainer: { 
-    borderColor: '#ccc'
+    backgroundColor: '#fcf7f7ff',
    },
    searchButton: {
     backgroundColor: '#d40000',
-    paddingVertical: 12,
+    padding: 12,
     borderRadius: 25,
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 30,
     alignItems: 'center',
-    boxShadow: '0px 3px 6px rgba(212, 0, 0, 1)',
+    shadowColor: '#d40000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 5,
     width: '60%',
    },
    searchButtonText: { 

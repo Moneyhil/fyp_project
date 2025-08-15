@@ -1,72 +1,324 @@
-import { useLocalSearchParams, router } from 'expo-router';
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
+import { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Alert, 
+  Dimensions,
+  ActivityIndicator,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Animated
 } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 
-const API_BASE_URL= 'http://192.168.100.16:8000';
+const { width, height } = Dimensions.get('window');
 
-export default function OtpScreen() {
-  const { email } = useLocalSearchParams(); // ✅ Get email from params
-  const [otp, setOtp] = useState('');
+export default function OTPVerification() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const email = params.email || '';
 
-  const handleVerifyOtp = async () => {
-    if (!otp || otp.length !== 6) {
-      Alert.alert('Invalid OTP', 'Please enter the 6-digit OTP sent to your email.');
-      return;
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const inputRefs = useRef([]);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // API Configuration
+  const API_BASE_URL = "http://192.168.100.16:8000";
+  const API_ENDPOINTS = {
+    VERIFY_OTP: '/donation/verify-otp/',
+    SEND_OTP: '/donation/send-otp/',
+  };
+
+  useEffect(() => {
+    // Fade in animation
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+
+    // Start countdown for resend
+    startCountdown();
+  }, []);
+
+  useEffect(() => {
+    let timer;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
+  const startCountdown = () => {
+    setCountdown(60); // 60 seconds countdown
+  };
+
+  const handleOtpChange = (text, index) => {
+    const newOtp = [...otp];
+    newOtp[index] = text;
+    setOtp(newOtp);
+
+    // Auto-focus next input
+    if (text && index < 5) {
+      inputRefs.current[index + 1]?.focus();
     }
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/donation/verify_otp`, {
-        method:'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, otp }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        Alert.alert('Success', data.message ||'OTP verified successfully!');
-        router.push({ pathname: 'profile', params: { email } }); // pass email forward if needed
-      } else {
-        Alert.alert('Verification Failed', data.error || data.message ||  'Incorrect OTP. Please try again.');
+    // Auto-submit when all digits are entered
+    if (index === 5 && text) {
+      const fullOtp = newOtp.join('');
+      if (fullOtp.length === 6) {
+        handleVerifyOTP(fullOtp);
       }
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Unable to verify OTP. Please try again later.');
+    }
+
+    setError(''); // Clear error when user types
+  };
+
+  const handleKeyPress = (e, index) => {
+    // Handle backspace
+    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
     }
   };
 
+  const handleVerifyOTP = async (otpCode = null) => {
+    if (isSubmitting) return;
+
+    const otpToVerify = otpCode || otp.join('');
+    
+    if (otpToVerify.length !== 6) {
+      setError('Please enter a 6-digit verification code');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}${API_ENDPOINTS.VERIFY_OTP}`,
+        {
+          email: email,
+          otp: otpToVerify,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          timeout: 30000,
+        }
+      );
+
+      console.log('OTP verification response:', response.data);
+
+      if (response.status === 200) {
+        // Clear pending verification email
+        await AsyncStorage.removeItem('pendingVerificationEmail');
+        
+        // Store user data
+        await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+        
+        Alert.alert(
+          "Verification Successful!",
+          "Your email has been verified. You can now log in to your account.",
+          [
+            {
+              text: "Continue",
+              onPress: () => router.push('/signin')
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      
+      if (error.response) {
+        const errorData = error.response.data;
+        let errorMessage = 'Verification failed. Please try again.';
+        
+        if (errorData && errorData.error) {
+          errorMessage = errorData.error;
+        }
+        
+        setError(errorMessage);
+      } else if (error.code === 'ECONNABORTED') {
+        setError('Request timed out. Please check your internet connection.');
+      } else if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
+        setError('Network error. Please check your internet connection.');
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    if (resendLoading || countdown > 0) return;
+
+    setResendLoading(true);
+    setError('');
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}${API_ENDPOINTS.SEND_OTP}`,
+        {
+          email: email,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          timeout: 30000,
+        }
+      );
+
+      if (response.status === 200) {
+        Alert.alert(
+          "OTP Sent",
+          "A new verification code has been sent to your email.",
+          [{ text: "OK" }]
+        );
+        startCountdown();
+        setOtp(['', '', '', '', '', '']); // Clear OTP inputs
+        inputRefs.current[0]?.focus(); // Focus first input
+      }
+    } catch (error) {
+      console.error('Resend OTP error:', error);
+      
+      if (error.response) {
+        const errorData = error.response.data;
+        let errorMessage = 'Failed to resend OTP. Please try again.';
+        
+        if (errorData && errorData.error) {
+          errorMessage = errorData.error;
+        }
+        
+        setError(errorMessage);
+      } else {
+        setError('Network error. Please check your internet connection.');
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <Text style={styles.title}>OTP Verification</Text>
-      <Text style={styles.subtitle}>Enter the 6-digit code sent to:</Text>
-      <Text style={styles.email}>{email}</Text>
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Enter OTP"
-        keyboardType="numeric"
-        maxLength={6}
-        value={otp}
-        onChangeText={setOtp}
-      />
+        <View style={styles.mainContent}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="mail-check" size={80} color="#c00808ff" />
+          </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleVerifyOtp}>
-        <Text style={styles.buttonText}>Verify OTP</Text>
-      </TouchableOpacity>
+          <Text style={styles.title}>Verify Your Email</Text>
+          <Text style={styles.subtitle}>
+            We've sent a 6-digit verification code to
+          </Text>
+          <Text style={styles.email}>{email}</Text>
+
+          <View style={styles.otpContainer}>
+            <Text style={styles.otpLabel}>Enter verification code</Text>
+            <View style={styles.otpInputs}>
+              {otp.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(ref) => (inputRefs.current[index] = ref)}
+                  style={[
+                    styles.otpInput,
+                    digit && styles.otpInputFilled,
+                    error && styles.otpInputError
+                  ]}
+                  value={digit}
+                  onChangeText={(text) => handleOtpChange(text, index)}
+                  onKeyPress={(e) => handleKeyPress(e, index)}
+                  keyboardType="numeric"
+                  maxLength={1}
+                  selectTextOnFocus
+                  autoFocus={index === 0}
+                />
+              ))}
+            </View>
+            {error && <Text style={styles.errorText}>{error}</Text>}
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.verifyButton, (!otp.join('') || loading) && styles.verifyButtonDisabled]} 
+            onPress={() => handleVerifyOTP()}
+            disabled={!otp.join('') || loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.verifyButtonText}>Verify Email</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.resendContainer}>
+            <Text style={styles.resendText}>Didn't receive the code? </Text>
+            {countdown > 0 ? (
+              <Text style={styles.countdownText}>
+                Resend in {formatTime(countdown)}
+              </Text>
+            ) : (
+              <TouchableOpacity 
+                onPress={handleResendOTP}
+                disabled={resendLoading}
+                style={styles.resendButton}
+              >
+                {resendLoading ? (
+                  <ActivityIndicator color="#c00808ff" size="small" />
+                ) : (
+                  <Text style={styles.resendButtonText}>Resend Code</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity 
+            style={styles.backToSignup}
+            onPress={() => router.push('/signup')}
+          >
+            <Text style={styles.backToSignupText}>
+              Back to Sign Up
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
     </KeyboardAvoidingView>
   );
 }
@@ -74,46 +326,149 @@ export default function OtpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    justifyContent: 'center',
     backgroundColor: '#fff',
   },
+  content: {
+    flex: 1,
+  },
+  header: {
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mainContent: {
+    flex: 1,
+    paddingHorizontal: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconContainer: {
+    marginBottom: 30,
+  },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#C40000',
+    color: '#333',
     textAlign: 'center',
     marginBottom: 10,
   },
   subtitle: {
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
-    color: '#555',
-  },
-  email: {
-    textAlign: 'center',
-    fontWeight: '600',
-    marginBottom: 30,
-    color: '#000',
-  },
-  input: {
-    backgroundColor: '#f2f2f2',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    fontSize: 12,
     marginBottom: 5,
   },
-  button: {
-    backgroundColor: '#C40000',
-    padding: 15,
-    borderRadius: 25,
-    marginTop: 10,
-    alignItems: 'center',
-    elevation: 3,
+  email: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#c00808ff',
+    textAlign: 'center',
+    marginBottom: 40,
   },
-  buttonText: {
+  otpContainer: {
+    width: '100%',
+    marginBottom: 30,
+  },
+  otpLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  otpInputs: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  otpInput: {
+    width: 50,
+    height: 60,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    borderRadius: 12,
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  otpInputFilled: {
+    borderColor: '#c00808ff',
+    backgroundColor: '#fff',
+  },
+  otpInputError: {
+    borderColor: '#dc3545',
+    backgroundColor: '#fff5f5',
+  },
+  errorText: {
+    color: '#dc3545',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  verifyButton: {
+    backgroundColor: '#c00808ff',
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    borderRadius: 12,
+    marginBottom: 30,
+    minWidth: 200,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  verifyButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  verifyButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+    fontSize: 18,
+  },
+  resendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 30,
+  },
+  resendText: {
     fontSize: 16,
+    color: '#666',
+  },
+  resendButton: {
+    paddingVertical: 5,
+  },
+  resendButtonText: {
+    fontSize: 16,
+    color: '#c00808ff',
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
+  },
+  countdownText: {
+    fontSize: 16,
+    color: '#999',
+    fontWeight: 'bold',
+  },
+  backToSignup: {
+    paddingVertical: 10,
+  },
+  backToSignupText: {
+    fontSize: 16,
+    color: '#666',
+    textDecorationLine: 'underline',
   },
 });

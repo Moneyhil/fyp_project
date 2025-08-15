@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-s9=w3gbqi2zgcw3rq#@w^2&j1y%+-ln*72i9x#08abeub%7+s='
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 RATELIMIT_ENABLE = True 
 
@@ -34,19 +34,15 @@ if DEBUG:
     ALLOWED_HOSTS.append('testserver')
 
 
-#email
+
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'your_email@gmail.com'
-EMAIL_HOST_PASSWORD = 'your_email_password_or_app_password'
+EMAIL_HOST_USER = 'manahil@gmail.com'
+EMAIL_HOST_PASSWORD = 'tmzfbcpdcyisligl'# Not your normal Gmail password
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
-
-if DEBUG:
-    EMAIL_BACKEND = 'django.core.mail.backend.console.EmailBackend'
-    DEFAULT_FROM_EMAIL = 'noreply@example.local'
 
 
 

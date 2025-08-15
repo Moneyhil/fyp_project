@@ -10,6 +10,7 @@ export default function mainscreen(){
       <Image
         source={require('../assets/images/mres.png')} 
         style={styles.image}
+        resizeMode="contain"
       />
 
       <Text style={styles.text}>Donate Blood, Save lives!!</Text>
@@ -58,7 +59,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
     alignItems: 'center',
-    boxShadow: '0px 4px 6px rgba(212,0,0,1)',
+    shadowColor: '#d40000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 5,
   },
   loginbutton: {
     backgroundColor: '#d40000',
@@ -68,8 +76,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
     alignItems: 'center',
-    boxShadow: '0px 4px 6px rgba(212,0,0,1)',
-
+    shadowColor: '#d40000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 5,
   },
   buttontext: {
     color: '#fff9f8ff',
