@@ -128,28 +128,9 @@ class RevokeAccessView(View):
         except User.DoesNotExist:
             return JsonResponse({"error": "User not found"}, status=404)
 
-
 # =====================================================
 # 🔹 AUTH + OTP VIEWS
 # =====================================================
-
-# Helper function to send OTP email
-def send_verification_email(email, otp):
-    subject = "Email Verification - Blood Donation App"
-    message = f"""
-    Thank you for registering with our Blood Donation App!
-
-    Your verification code is: {otp}
-
-    This code will expire in 10 minutes.
-
-    If you didn't request this code, please ignore this email.
-
-    Best regards,
-    Blood Donation App Team
-    """
-    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
-
 
 # --- Registration with OTP ---
 class UserCreate(CreateAPIView):
@@ -158,14 +139,20 @@ class UserCreate(CreateAPIView):
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        data = request.data.copy()
+
+        # Normalize email
+        if "email" in data:
+            data["email"] = data["email"].strip().lower()
+
+        serializer = self.get_serializer(data=data)
         if serializer.is_valid():
             email = serializer.validated_data.get("email")
             if User.objects.filter(email=email).exists():
                 return Response({"error": "Email is already registered"}, status=409)
 
             user = serializer.save()
-            raw_otp = user.set_otp()  # assume set_otp() is in model
+            raw_otp = user.set_otp()  # ✅ Generates and saves OTP in model
 
             try:
                 send_verification_email(user.email, raw_otp)
@@ -175,7 +162,7 @@ class UserCreate(CreateAPIView):
                         "message": "Registration successful (test mode). Use this OTP to verify.",
                         "user_id": user.id,
                         "email": user.email,
-                        "temp_code": raw_otp,
+                        "temp_code": raw_otp,  # ✅ Debugging only
                         "next_step": "verify-otp",
                     },
                     status=201,
@@ -194,12 +181,34 @@ class UserCreate(CreateAPIView):
         return Response(serializer.errors, status=400)
 
 
+def send_verification_email(email, otp):
+    subject = "Email Verification - Blood Donation App"
+    message = f"""
+    Thank you for registering with our Blood Donation App!
+
+    Your verification code is: {otp}
+
+    This code will expire in 10 minutes.
+
+    If you didn't request this code, please ignore this email.
+
+    Best regards,
+    Blood Donation App Team
+    """
+    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
+
+
 # --- Resend OTP ---
 @ratelimit(key="ip", rate="3/m")
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def send_otp(request):
-    serializer = SendOTPSerializer(data=request.data)
+    data = request.data.copy()
+
+    if "email" in data:
+        data["email"] = data["email"].strip().lower()
+
+    serializer = SendOTPSerializer(data=data)
     if serializer.is_valid():
         email = serializer.validated_data["email"]
         try:
@@ -230,9 +239,19 @@ class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = OTPVerifySerializer(data=request.data)
+        data = request.data.copy()
+
+        if "email" in data:
+            data["email"] = data["email"].strip().lower()
+
+        serializer = OTPVerifySerializer(data=data)
         if serializer.is_valid():
             user = serializer.validated_data["user"]
+
+            # ✅ Activate user after OTP verified
+            user.is_active = True
+            user.save()
+
             user_serializer = UserResponseSerializer(user)
             return Response(
                 {
@@ -250,9 +269,18 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)
+        data = request.data.copy()
+
+        if "email" in data:
+            data["email"] = data["email"].strip().lower()
+
+        serializer = LoginSerializer(data=data)
         if serializer.is_valid():
             user = serializer.validated_data["user"]
+
+            if not user.is_active:
+                return Response({"error": "Please verify your email first"}, status=403)
+
             user_serializer = UserResponseSerializer(user)
             return Response(
                 {

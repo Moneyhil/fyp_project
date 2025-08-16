@@ -125,3 +125,6 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     )
 }
+AUTH_USER_MODEL = "donation.User"  # replace "accounts" with your app name
+
+

@@ -15,7 +15,7 @@ urlpatterns = [
     path("admin/users/<int:pk>/revoke/", views.RevokeAccessView.as_view(), name="user-revoke"),
 
 
-    path('user/create/', views.UserCreate.as_view(), name='registration-create'),
+    path('registration/create/', views.UserCreate.as_view(), name='registration-create'),
     path('send-otp/', views.send_otp, name='send-otp'),
     path('verify-otp/', views.VerifyOTPView.as_view(), name='verify-otp'),
     path('login/', views.LoginView.as_view(), name='login'),

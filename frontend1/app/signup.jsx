@@ -17,7 +17,6 @@ export default function Registration() {
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const API_BASE_URL = "http://192.168.100.16:8000";
 
   // Validation schema
   const validationSchema = Yup.object().shape({
@@ -84,8 +83,7 @@ const handleChange = (field, value) => {
 
       console.log("Sending registration payload:", registrationPayload);
 
-      const registrationResponse = await axios.post(
-        `${API_BASE_URL}/donation/Registration/create/`,
+      const registrationResponse = await axios.post("http://192.168.100.16:8000/donation/registration/create/",
         registrationPayload,
         {
           headers: {

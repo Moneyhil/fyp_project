@@ -3,8 +3,6 @@ from .models import User
 import re
 from django.core.mail import send_mail
 from django.conf import settings
-from django.contrib.auth.hashers import check_password
-
 
 class UserSerializer(serializers.ModelSerializer):
     confirmpassword = serializers.CharField(write_only=True, required=True)
@@ -32,7 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password": "Password must contain at least one lowercase letter"})
         if not re.search(r'\d', password):
             raise serializers.ValidationError({"password": "Password must contain at least one number"})
-        if not re.search(r'[!@#$%^&*(),.?\":{}|<>]', password):
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
             raise serializers.ValidationError({"password": "Password must contain at least one special character"})
 
         # Validate name format
@@ -40,23 +38,37 @@ class UserSerializer(serializers.ModelSerializer):
         if not re.match(r'^[a-zA-Z\s]+$', name):
             raise serializers.ValidationError({"name": "Name can only contain letters and spaces"})
 
+        # Check duplicate email
+        if User.objects.filter(email=attrs.get("email")).exists():
+            raise serializers.ValidationError({"email": "This email is already registered."})
+
         return attrs
 
     def create(self, validated_data):
         validated_data.pop('confirmpassword')
-        user = User.objects.create(**validated_data)
+        password = validated_data.pop("password")
 
-        # Generate OTP using model method
+        # Create user via CustomUser manager
+        user = User.objects.create_user(
+            email=validated_data['email'],
+            name=validated_data['name'],
+            password=password
+        )
+
+        # Generate OTP
         raw_otp = user.set_otp()
 
         # Send OTP email
-        send_mail(
-            subject='Your OTP Code',
-            message=f'Your OTP is {raw_otp}. It will expire in 10 minutes.',
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
-        )
+        try:
+            send_mail(
+                subject='Your OTP Code',
+                message=f'Your OTP is {raw_otp}. It will expire in 10 minutes.',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except Exception:
+            pass  # fallback: return OTP in API response in view
 
         return user
 
@@ -77,15 +89,11 @@ class OTPVerifySerializer(serializers.Serializer):
         except User.DoesNotExist:
             raise serializers.ValidationError({"error": "User not found", "code": "user_not_found"})
 
-        # Check if user is already verified
         if user.is_verified:
-            # Return the user without verifying OTP again
             attrs['user'] = user
             return attrs
 
-        # Verify OTP
         is_valid, message = user.verify_otp(otp)
-        
         if not is_valid:
             error_code = "expired" if "expired" in message else "invalid"
             raise serializers.ValidationError({"error": message, "code": error_code})
@@ -102,8 +110,10 @@ class SendOTPSerializer(serializers.Serializer):
             user = User.objects.get(email=value)
         except User.DoesNotExist:
             raise serializers.ValidationError("User not found")
+        self.user = user
         return value
-    
+
+
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -117,7 +127,7 @@ class LoginSerializer(serializers.Serializer):
         except User.DoesNotExist:
             raise serializers.ValidationError("User with this email does not exist.")
 
-        if not check_password(password, user.password):
+        if not user.check_password(password):
             raise serializers.ValidationError("Invalid password.")
 
         if not user.is_verified:
@@ -125,12 +135,9 @@ class LoginSerializer(serializers.Serializer):
 
         data['user'] = user
         return data
-    
-    from rest_framework import serializers
-from .models import User
+
 
 class UserResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        # choose the fields you want to return to frontend
-        fields = ["id", "username", "email", "is_verified"]
+        fields = ["id", "name", "email", "is_verified"]
