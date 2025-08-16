@@ -1,34 +1,16 @@
 from rest_framework import serializers
-from .models import Admin1, Registration
+from .models import User
 import re
 from django.core.mail import send_mail
 from django.conf import settings
-import random
+from django.contrib.auth.hashers import check_password
 
 
-
-class Admin1Serializer(serializers.ModelSerializer):
-    confirmpassword = serializers.CharField(write_only=True, required=True)
-    
-    class Meta:
-        model = Admin1
-        fields = ['id', 'first_name', 'email', 'phone_number', 'password', 'confirmpassword']
-
-    def validate(self, attrs):
-        if attrs.get('password') != attrs.get('confirmpassword'):
-            raise serializers.ValidationError("Passwords do not match")
-        return attrs
-
-    def create(self, validated_data):
-        validated_data.pop('confirmpassword')
-        return Admin1.objects.create(**validated_data)
-
-
-class RegistrationSerializer(serializers.ModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     confirmpassword = serializers.CharField(write_only=True, required=True)
 
     class Meta:
-        model = Registration
+        model = User
         fields = ['id', 'name', 'email', 'password', 'confirmpassword', 'is_verified']
         extra_kwargs = {
             'password': {'write_only': True},
@@ -39,7 +21,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
         # Check if passwords match
         if attrs.get('password') != attrs.get('confirmpassword'):
             raise serializers.ValidationError({"confirmpassword": "Passwords do not match"})
-        
+
         # Validate password strength
         password = attrs.get('password')
         if len(password) < 8:
@@ -50,70 +32,33 @@ class RegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password": "Password must contain at least one lowercase letter"})
         if not re.search(r'\d', password):
             raise serializers.ValidationError({"password": "Password must contain at least one number"})
-        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        if not re.search(r'[!@#$%^&*(),.?\":{}|<>]', password):
             raise serializers.ValidationError({"password": "Password must contain at least one special character"})
-        
+
         # Validate name format
         name = attrs.get('name')
         if not re.match(r'^[a-zA-Z\s]+$', name):
             raise serializers.ValidationError({"name": "Name can only contain letters and spaces"})
-        
+
         return attrs
 
     def create(self, validated_data):
         validated_data.pop('confirmpassword')
-        user = Registration.objects.create(**validated_data)
+        user = User.objects.create(**validated_data)
 
-        # Generate OTP
-        raw_otp = str(random.randint(100000, 999999))
-        user.set_otp(raw_otp)
+        # Generate OTP using model method
+        raw_otp = user.set_otp()
 
         # Send OTP email
         send_mail(
             subject='Your OTP Code',
-            message=f'Your OTP is {raw_otp}. It will expire in 5 minutes.',
+            message=f'Your OTP is {raw_otp}. It will expire in 10 minutes.',
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
             fail_silently=False,
         )
 
         return user
-
-
-
-class UserResponseSerializer(serializers.ModelSerializer):
-    """Serializer for user data in responses"""
-    class Meta:
-        model = Registration
-        fields = ['id', 'name', 'email', 'is_verified']
-
-
-class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        email = attrs.get('email')
-        password = attrs.get('password')
-
-        if not email or not password:
-            raise serializers.ValidationError({"error": "Email and password are required"})
-
-        try:
-            user = Registration.objects.get(email=email)
-        except Registration.DoesNotExist:
-            raise serializers.ValidationError({"error": "Invalid credentials"})
-
-        # Check password
-        if not user.check_password(password):
-            raise serializers.ValidationError({"error": "Invalid credentials"})
-
-        # Check if user is verified
-        if not user.is_verified:
-            raise serializers.ValidationError({"error": "Please verify your email before logging in"})
-
-        attrs['user'] = user
-        return attrs
 
 
 class OTPVerifySerializer(serializers.Serializer):
@@ -128,15 +73,22 @@ class OTPVerifySerializer(serializers.Serializer):
             raise serializers.ValidationError({"error": "Email and OTP are required"})
 
         try:
-            user = Registration.objects.get(email=email)
-        except Registration.DoesNotExist:
-            raise serializers.ValidationError({"error": "User not found"})
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"error": "User not found", "code": "user_not_found"})
+
+        # Check if user is already verified
+        if user.is_verified:
+            # Return the user without verifying OTP again
+            attrs['user'] = user
+            return attrs
 
         # Verify OTP
         is_valid, message = user.verify_otp(otp)
         
         if not is_valid:
-            raise serializers.ValidationError({"error": message})
+            error_code = "expired" if "expired" in message else "invalid"
+            raise serializers.ValidationError({"error": message, "code": error_code})
 
         attrs['user'] = user
         return attrs
@@ -147,7 +99,38 @@ class SendOTPSerializer(serializers.Serializer):
 
     def validate_email(self, value):
         try:
-            user = Registration.objects.get(email=value)
-        except Registration.DoesNotExist:
+            user = User.objects.get(email=value)
+        except User.DoesNotExist:
             raise serializers.ValidationError("User not found")
         return value
+    
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        email = data.get('email')
+        password = data.get('password')
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User with this email does not exist.")
+
+        if not check_password(password, user.password):
+            raise serializers.ValidationError("Invalid password.")
+
+        if not user.is_verified:
+            raise serializers.ValidationError("User is not verified. Please verify your email first.")
+
+        data['user'] = user
+        return data
+    
+    from rest_framework import serializers
+from .models import User
+
+class UserResponseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        # choose the fields you want to return to frontend
+        fields = ["id", "username", "email", "is_verified"]

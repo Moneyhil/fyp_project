@@ -47,16 +47,18 @@ export default function Registration() {
       .oneOf([Yup.ref("password"), null], "Passwords must match")
       .required("Please confirm your password"),
   });
-
-  const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+const handleChange = (field, value) => {
+  setFormData(prev => {
+    const updated = { ...prev, [field]: value };
     if (touched[field]) {
       validationSchema
-        .validateAt(field, { ...formData, [field]: value })
-        .then(() => setErrors((prev) => ({ ...prev, [field]: "" })))
-        .catch((err) => setErrors((prev) => ({ ...prev, [field]: err.message })));
+        .validateAt(field, updated)
+        .then(() => setErrors(prev => ({ ...prev, [field]: "" })))
+        .catch(err => setErrors(prev => ({ ...prev, [field]: err.message })));
     }
-  };
+    return updated;
+  });
+};
 
   const handleBlur = (field) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
@@ -78,7 +80,6 @@ export default function Registration() {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
-        confirmpassword: formData.confirmPassword,
       };
 
       console.log("Sending registration payload:", registrationPayload);
