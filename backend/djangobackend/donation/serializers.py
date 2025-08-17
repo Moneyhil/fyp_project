@@ -3,74 +3,53 @@ from .models import User
 import re
 from django.core.mail import send_mail
 from django.conf import settings
+import logging
+from django.contrib.auth.password_validation import validate_password
+
+logger = logging.getLogger(__name__)
 
 class UserSerializer(serializers.ModelSerializer):
-    confirmpassword = serializers.CharField(write_only=True, required=True)
-
     class Meta:
         model = User
-        fields = ['id', 'name', 'email', 'password', 'confirmpassword', 'is_verified']
+        fields = ['id', 'name', 'email', 'password', 'is_verified']
         extra_kwargs = {
             'password': {'write_only': True},
             'is_verified': {'read_only': True}
         }
+        
+
+    def validate_email(self, value):
+        value = value.lower().strip()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("Email already registered")
+        return value
+    
 
     def validate(self, attrs):
-        # Check if passwords match
-        if attrs.get('password') != attrs.get('confirmpassword'):
-            raise serializers.ValidationError({"confirmpassword": "Passwords do not match"})
-
-        # Validate password strength
-        password = attrs.get('password')
-        if len(password) < 8:
-            raise serializers.ValidationError({"password": "Password must be at least 8 characters long"})
-        if not re.search(r'[A-Z]', password):
-            raise serializers.ValidationError({"password": "Password must contain at least one uppercase letter"})
-        if not re.search(r'[a-z]', password):
-            raise serializers.ValidationError({"password": "Password must contain at least one lowercase letter"})
-        if not re.search(r'\d', password):
-            raise serializers.ValidationError({"password": "Password must contain at least one number"})
-        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
-            raise serializers.ValidationError({"password": "Password must contain at least one special character"})
-
-        # Validate name format
-        name = attrs.get('name')
-        if not re.match(r'^[a-zA-Z\s]+$', name):
-            raise serializers.ValidationError({"name": "Name can only contain letters and spaces"})
-
-        # Check duplicate email
-        if User.objects.filter(email=attrs.get("email")).exists():
-            raise serializers.ValidationError({"email": "This email is already registered."})
-
+        validate_password(attrs['password'])
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop('confirmpassword')
-        password = validated_data.pop("password")
-
-        # Create user via CustomUser manager
         user = User.objects.create_user(
             email=validated_data['email'],
             name=validated_data['name'],
-            password=password
+            password=validated_data['password']
         )
-
-        # Generate OTP
-        raw_otp = user.set_otp()
-
-        # Send OTP email
+        
+        raw_otp = user.generate_otp()  # Using correct method name
+        
         try:
             send_mail(
-                subject='Your OTP Code',
-                message=f'Your OTP is {raw_otp}. It will expire in 10 minutes.',
+                subject='Verify Your Account',
+                message=f'Your OTP: {raw_otp}',
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[user.email],
-                fail_silently=False,
             )
-        except Exception:
-            pass  # fallback: return OTP in API response in view
-
+        except Exception as e:
+            logger.error(f"Email send failed: {e}")
+        
         return user
+
 
 
 class OTPVerifySerializer(serializers.Serializer):

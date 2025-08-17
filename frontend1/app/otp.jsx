@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Animated
+  Animated,
+  ScrollView
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import axios from 'axios';
@@ -76,11 +77,14 @@ export default function OTPVerification() {
     }
 
     // Auto-submit when all digits are entered
-    if (index === 5 && text) {
-      const fullOtp = newOtp.join('');
-      if (fullOtp.length === 6) {
-        handleVerifyOTP(fullOtp);
-      }
+    const fullOtp = newOtp.join('');
+    if (fullOtp.length === 6 && !fullOtp.includes('') && !isSubmitting && !loading) {
+      // Small delay to ensure UI updates before submission
+      setTimeout(() => {
+        if (!isSubmitting && !loading) {
+          handleVerifyOTP(fullOtp);
+        }
+      }, 100);
     }
 
     setError(''); // Clear error when user types
@@ -129,16 +133,21 @@ export default function OTPVerification() {
         // Clear pending verification email
         await AsyncStorage.removeItem('pendingVerificationEmail');
         
-        // Store user data
-        await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+        // Store user data and token if available
+        if (response.data.user) {
+          await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+        }
+        if (response.data.token) {
+          await AsyncStorage.setItem('authToken', response.data.token);
+        }
         
         Alert.alert(
           "Verification Successful!",
-          "Your email has been verified. You can now log in to your account.",
+          "Your email has been verified. Welcome to the app!",
           [
             {
               text: "Continue",
-              onPress: () => router.push('/signin')
+              onPress: () => router.replace('/home')
             }
           ]
         );
@@ -150,8 +159,17 @@ export default function OTPVerification() {
         const errorData = error.response.data;
         let errorMessage = 'Verification failed. Please try again.';
         
-        if (errorData && errorData.error) {
-          errorMessage = errorData.error;
+        if (errorData) {
+          // Handle different error response formats
+          if (errorData.error) {
+            errorMessage = Array.isArray(errorData.error) ? errorData.error[0] : errorData.error;
+          } else if (errorData.otp) {
+            errorMessage = Array.isArray(errorData.otp) ? errorData.otp[0] : errorData.otp;
+          } else if (errorData.email) {
+            errorMessage = Array.isArray(errorData.email) ? errorData.email[0] : errorData.email;
+          } else if (errorData.detail) {
+            errorMessage = errorData.detail;
+          }
         }
         
         setError(errorMessage);
@@ -206,8 +224,15 @@ export default function OTPVerification() {
         const errorData = error.response.data;
         let errorMessage = 'Failed to resend OTP. Please try again.';
         
-        if (errorData && errorData.error) {
-          errorMessage = errorData.error;
+        if (errorData) {
+          // Handle different error response formats
+          if (errorData.error) {
+            errorMessage = Array.isArray(errorData.error) ? errorData.error[0] : errorData.error;
+          } else if (errorData.email) {
+            errorMessage = Array.isArray(errorData.email) ? errorData.email[0] : errorData.email;
+          } else if (errorData.detail) {
+            errorMessage = errorData.detail;
+          }
         }
         
         setError(errorMessage);
@@ -240,9 +265,15 @@ export default function OTPVerification() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.mainContent}>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.mainContent}>
           <View style={styles.iconContainer}>
-            <Ionicons name="mail-check" size={80} color="#c00808ff" />
+            <Ionicons name="mail-outline" size={80} color="#c00808ff" />
           </View>
 
           <Text style={styles.title}>Verify Your Email</Text>
@@ -317,7 +348,8 @@ export default function OTPVerification() {
               Back to Sign Up
             </Text>
           </TouchableOpacity>
-        </View>
+          </View>
+        </ScrollView>
       </Animated.View>
     </KeyboardAvoidingView>
   );
@@ -330,6 +362,13 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
   },
   header: {
     paddingTop: 50,
@@ -349,6 +388,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: height - 150,
   },
   iconContainer: {
     marginBottom: 30,

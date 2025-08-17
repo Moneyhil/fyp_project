@@ -1,18 +1,24 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
 from .models import User
-from django.contrib.auth.hashers import make_password
 
-@admin.register(User)
-class UserAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'is_verified', 'created_at')
-    list_display_links = ('name', 'email')
-    search_fields = ('name', 'email')
-    list_filter = ('is_verified',)
+class CustomUserAdmin(UserAdmin):
+    list_display = ('email', 'name', 'is_staff', 'date_joined', 'is_verified')  # Use date_joined instead of created_at
+    list_filter = ('is_staff', 'is_superuser', 'is_active', 'is_verified')
+    fieldsets = (
+        (None, {'fields': ('email', 'password')}),
+        ('Personal Info', {'fields': ('name',)}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'is_verified')}),
+        ('Important dates', {'fields': ('last_login', 'date_joined')}),
+    )
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('email', 'name', 'password1', 'password2'),
+        }),
+    )
+    search_fields = ('email', 'name')
+    ordering = ('-date_joined',)
+    filter_horizontal = ()
 
-    def save_model(self, request, obj, form, change):
-        if 'password' in form.changed_data:
-            raw_password = form.cleaned_data['password']
-            # Hash only if it's not already hashed
-            if not raw_password.startswith("pbkdf2_"):
-                obj.password = make_password(raw_password)
-        super().save_model(request, obj, form, change)
+admin.site.register(User, CustomUserAdmin)

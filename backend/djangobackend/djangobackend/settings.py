@@ -125,6 +125,17 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     )
 }
-AUTH_USER_MODEL = "donation.User"  # replace "accounts" with your app name
 
+AUTH_USER_MODEL = 'donation.User' # replace "accounts" with your app name
+
+# Cache configuration (for OTP storage)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
+# Rate limiting
+RATELIMIT_ENABLE = True
 

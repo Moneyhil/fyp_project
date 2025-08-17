@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import axios from "axios";
 import * as Yup from "yup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Registration() {
   const router = useRouter();
@@ -16,7 +17,8 @@ export default function Registration() {
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
-
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Validation schema
   const validationSchema = Yup.object().shape({
@@ -26,13 +28,11 @@ export default function Registration() {
       .max(50, "Name must be at most 50 characters")
       .matches(/^[a-zA-Z\s]+$/, "Name can only contain letters and spaces")
       .required("Full name is required"),
-    
     email: Yup.string()
       .trim()
       .email("Please enter a valid email address")
       .max(50, "Email must be at most 50 characters")
       .required("Email address is required"),
-    
     password: Yup.string()
       .min(8, "Password must be at least 8 characters")
       .max(50, "Password must be at most 50 characters")
@@ -41,31 +41,27 @@ export default function Registration() {
       .matches(/\d/, "Password must contain at least one number")
       .matches(/[!@#$%^&*(),.?":{}|<>]/, "Password must contain at least one special character")
       .required("Password is required"),
-    
     confirmPassword: Yup.string()
       .oneOf([Yup.ref("password"), null], "Passwords must match")
       .required("Please confirm your password"),
   });
-const handleChange = (field, value) => {
-  setFormData(prev => {
-    const updated = { ...prev, [field]: value };
-    if (touched[field]) {
-      validationSchema
-        .validateAt(field, updated)
-        .then(() => setErrors(prev => ({ ...prev, [field]: "" })))
-        .catch(err => setErrors(prev => ({ ...prev, [field]: err.message })));
-    }
-    return updated;
-  });
-};
 
-  const handleBlur = (field) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
+  const handleChange = (field, value) => {
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      if (touched[field]) {
+        validationSchema
+          .validateAt(field, updated)
+          .then(() => setErrors(prev => ({ ...prev, [field]: "" })))
+          .catch(err => setErrors(prev => ({ ...prev, [field]: err.message })));
+      }
+      return updated;
+    });
   };
 
-  const getInputStyle = (field) => {
-    return touched[field] && errors[field] ? [styles.input, styles.inputError] : styles.input;
-  };
+  const handleBlur = (field) => setTouched(prev => ({ ...prev, [field]: true }));
+
+  const getInputStyle = (field) => touched[field] && errors[field] ? [styles.input, styles.inputError] : styles.input;
 
   const handleSignup = async () => {
     setTouched({ name: true, email: true, password: true, confirmPassword: true });
@@ -75,97 +71,57 @@ const handleChange = (field, value) => {
       await validationSchema.validate(formData, { abortEarly: false });
       setErrors({});
 
-      const registrationPayload = {
+      const payload = {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
       };
 
-      console.log("Sending registration payload:", registrationPayload);
+      console.log("Sending registration payload:", payload);
 
-      const registrationResponse = await axios.post("http://192.168.100.16:8000/donation/registration/create/",
-        registrationPayload,
+      const response = await axios.post(
+        "http://192.168.100.16:8000/donation/registration/create/",
+        payload,
         {
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           timeout: 30000,
         }
       );
 
-      console.log("Registration response:", registrationResponse.data);
+      console.log("Registration response:", response.data);
 
-      if (registrationResponse.status === 201) {
-        await AsyncStorage.setItem("pendingVerificationEmail", formData.email.trim().toLowerCase());
-        
+      if (response.status === 201) {
+        // Save email locally for OTP verification
+        await AsyncStorage.setItem("pendingVerificationEmail", payload.email);
+
         Alert.alert(
           "Registration Successful!",
           "Please check your email for the verification code.",
           [
             {
               text: "OK",
-              onPress: () => router.push({ 
-                pathname: "/otp", 
-                params: { email: formData.email.trim().toLowerCase() } 
-              })
-            }
+              onPress: () => {
+                // Navigate to OTP screen and pass email as param
+                router.push({ pathname: "/otp", params: { email: payload.email } });
+              },
+            },
           ]
         );
-      } else {
-        throw new Error("Registration failed");
       }
 
     } catch (error) {
       console.error("Signup error:", error);
-      
+
       if (error.name === "ValidationError") {
         const formErrors = {};
-        error.inner.forEach((e) => {
-          formErrors[e.path] = e.message;
-        });
+        error.inner.forEach(e => { formErrors[e.path] = e.message; });
         setErrors(formErrors);
         Alert.alert("Validation Error", "Please fix the errors in the form.");
       } else if (error.response) {
-        const errorData = error.response.data;
-        console.log("Error response data:", errorData);
-        
-        let errorMessage = "Registration failed. Please try again.";
-        
-        if (errorData) {
-          if (typeof errorData === "string") {
-            errorMessage = errorData;
-          } else if (errorData.error) {
-            errorMessage = errorData.error;
-          } else if (errorData.message) {
-            errorMessage = errorData.message;
-          } else if (errorData.detail) {
-            errorMessage = errorData.detail;
-          } else if (typeof errorData === "object") {
-            const fieldErrors = Object.keys(errorData).map(key => errorData[key]).flat();
-            errorMessage = fieldErrors.join(", ");
-          }
-        }
-        
-        if (error.response.status === 400) {
-          if (errorMessage.toLowerCase().includes("email")) {
-            setErrors(prev => ({ ...prev, email: "This email is already registered" }));
-          } else if (errorMessage.toLowerCase().includes("password")) {
-            setErrors(prev => ({ ...prev, password: "Password requirements not met" }));
-          } else {
-            Alert.alert("Invalid Data", errorMessage);
-          }
-        } else if (error.response.status === 409) {
-          setErrors(prev => ({ ...prev, email: "This email is already registered" }));
-        } else if (error.response.status === 404) {
-          Alert.alert("Service Unavailable", "Registration service is currently unavailable. Please try again later.");
-        } else {
-          Alert.alert("Server Error", errorMessage);
-        }
-      } else if (error.code === "ECONNABORTED") {
-        Alert.alert("Connection Timeout", "Request timed out. Please check your internet connection and try again.");
-      } else if (error.code === "NETWORK_ERROR" || error.message.includes("Network Error")) {
-        Alert.alert("Network Error", "Please check your internet connection and try again.");
+        const errData = error.response.data;
+        let errorMessage = errData?.error || errData?.message || "Registration failed. Please try again.";
+        if (error.response.status === 409) setErrors(prev => ({ ...prev, email: "This email is already registered" }));
+        else Alert.alert("Error", errorMessage);
       } else {
         Alert.alert("Error", "An unexpected error occurred. Please try again.");
       }
@@ -173,7 +129,6 @@ const handleChange = (field, value) => {
       setLoading(false);
     }
   };
-
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View>
@@ -203,25 +158,49 @@ const handleChange = (field, value) => {
         {touched.email && errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          placeholder="Create a strong password"
-          value={formData.password}
-          onChangeText={(text) => handleChange("password", text)}
-          onBlur={() => handleBlur("password")}
-          style={getInputStyle("password")}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            placeholder="Create a strong password"
+            value={formData.password}
+            onChangeText={(text) => handleChange("password", text)}
+            onBlur={() => handleBlur("password")}
+            style={[getInputStyle("password"), styles.passwordInput]}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? "eye-off" : "eye"}
+              size={20}
+              color="#666"
+            />
+          </TouchableOpacity>
+        </View>
         {touched.password && errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
         <Text style={styles.label}>Confirm Password</Text>
-        <TextInput
-          placeholder="Confirm your password"
-          value={formData.confirmPassword}
-          onChangeText={(text) => handleChange("confirmPassword", text)}
-          onBlur={() => handleBlur("confirmPassword")}
-          style={getInputStyle("confirmPassword")}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            placeholder="Confirm your password"
+            value={formData.confirmPassword}
+            onChangeText={(text) => handleChange("confirmPassword", text)}
+            onBlur={() => handleBlur("confirmPassword")}
+            style={[getInputStyle("confirmPassword"), styles.passwordInput]}
+            secureTextEntry={!showConfirmPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          >
+            <Ionicons
+              name={showConfirmPassword ? "eye-off" : "eye"}
+              size={20}
+              color="#666"
+            />
+          </TouchableOpacity>
+        </View>
         {touched.confirmPassword && errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
 
         <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
@@ -314,5 +293,17 @@ const styles = StyleSheet.create({
   Link: {
     color: "#0000ff",
     textDecorationLine: "underline",
+  },
+  passwordContainer: {
+    position: "relative",
+  },
+  passwordInput: {
+    paddingRight: 45,
+  },
+  eyeIcon: {
+    position: "absolute",
+    right: 15,
+    top: 12,
+    zIndex: 1,
   },
 });

@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import axios from "axios";
 import * as Yup from "yup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Login() {
   const router = useRouter();
@@ -14,8 +15,7 @@ export default function Login() {
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
-
-  const API_BASE_URL = "http://192.168.100.16:8000"; // same as signup
+  const [showPassword, setShowPassword] = useState(false);
 
   // Validation schema
   const validationSchema = Yup.object().shape({
@@ -50,7 +50,7 @@ export default function Login() {
       setErrors({});
 
       const response = await axios.post(
-        `${API_BASE_URL}/login/`,
+        "http://192.168.100.16:8000/login/",
         {
           email: formData.email,
           password: formData.password,
@@ -64,10 +64,11 @@ export default function Login() {
       );
 
       if (response.status === 200) {
-        const { token, user } = response.data;
+        const { token, access_token, user } = response.data;
+        const authToken = token || access_token; // Handle both field names
 
         // Store token & user info
-        await AsyncStorage.setItem("authToken", token);
+        await AsyncStorage.setItem("authToken", authToken);
         await AsyncStorage.setItem("user", JSON.stringify(user));
 
         Alert.alert("Success", "Login successful!");
@@ -75,7 +76,26 @@ export default function Login() {
       }
     } catch (err) {
       if (err.response) {
-        Alert.alert("Error", err.response.data?.error || "Invalid email or password");
+        // Handle backend validation errors
+        if (err.response.status === 400 && err.response.data) {
+          const errorData = err.response.data;
+          if (typeof errorData === 'object' && !errorData.error) {
+            // Handle field-specific validation errors
+            const formErrors = {};
+            Object.keys(errorData).forEach(field => {
+              if (Array.isArray(errorData[field])) {
+                formErrors[field] = errorData[field][0];
+              } else {
+                formErrors[field] = errorData[field];
+              }
+            });
+            setErrors(formErrors);
+          } else {
+            Alert.alert("Error", errorData.error || errorData.non_field_errors?.[0] || "Invalid email or password");
+          }
+        } else {
+          Alert.alert("Error", err.response.data?.error || "Invalid email or password");
+        }
       } else if (err.name === "ValidationError") {
         const formErrors = {};
         err.inner.forEach((e) => (formErrors[e.path] = e.message));
@@ -106,14 +126,26 @@ export default function Login() {
         {touched.email && errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          placeholder="********"
-          value={formData.password}
-          onChangeText={(text) => handleChange("password", text)}
-          onBlur={() => handleBlur("password")}
-          style={getInputStyle("password")}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            placeholder="********"
+            value={formData.password}
+            onChangeText={(text) => handleChange("password", text)}
+            onBlur={() => handleBlur("password")}
+            style={[getInputStyle("password"), styles.passwordInput]}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? "eye-off" : "eye"}
+              size={20}
+              color="#666"
+            />
+          </TouchableOpacity>
+        </View>
         {touched.password && errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
@@ -160,6 +192,19 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     borderWidth: 1,
     borderColor: "#f2f2f2",
+  },
+  passwordContainer: {
+    position: "relative",
+    marginBottom: 5,
+  },
+  passwordInput: {
+    paddingRight: 45,
+  },
+  eyeIcon: {
+    position: "absolute",
+    right: 15,
+    top: 12,
+    padding: 5,
   },
   inputError: {
     borderColor: "#ff0000",
