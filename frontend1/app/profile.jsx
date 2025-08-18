@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView } from "react-native";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, Alert } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 
 export default function ProfileScreen() {
   const [formData, setFormData] = useState({
@@ -67,7 +69,7 @@ export default function ProfileScreen() {
       case "contactNumber":
         if (!value.trim()) error = "Contact number is required";
         else if (!/^\d+$/.test(value)) error = "Contact number must be numeric";
-        else if (value.length < 11) error = "Must be at least 11 digits";
+        else if (value.length !== 11) error = "Contact number must be exactly 11 digits";
         break;
       case "city":
         if (!value) error = "City is required";
@@ -95,7 +97,7 @@ export default function ProfileScreen() {
     validateField(field, formData[field]);
   };
 
-  const handleDone = () => {
+  const handleSubmit = async () => {
     let isValid = true;
     Object.keys(formData).forEach((field) => {
       validateField(field, formData[field]);
@@ -103,8 +105,71 @@ export default function ProfileScreen() {
       if (formData[field] === "" || errors[field]) isValid = false;
     });
 
-    if (isValid) {
-      router.push("/home");
+    if (!isValid) {
+      Alert.alert("Validation Error", "Please fix the errors in the form.");
+      return;
+    }
+
+    try {
+      // Get user email from storage
+      const userString = await AsyncStorage.getItem("user");
+      if (!userString) {
+        Alert.alert("Error", "User not found. Please login again.");
+        router.replace("/signin");
+        return;
+      }
+
+      const user = JSON.parse(userString);
+      const email = user.email;
+
+      // Prepare profile data
+      const profileData = {
+        email: email,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        contact_number: formData.contactNumber,
+        address: formData.address,
+        gender: formData.gender,
+        city: formData.city,
+        blood_group: formData.bloodGroup,
+        role: formData.role,
+      };
+
+      // Send profile data to backend
+      const response = await axios.post(
+        "http://192.168.100.16:8000/donation/profile/create/",
+        profileData,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: 10000,
+        }
+      );
+
+      if (response.status === 201 || response.status === 200) {
+        Alert.alert(
+          "Success",
+          "Profile created successfully!",
+          [
+            {
+              text: "OK",
+              onPress: () => router.replace("/home")
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error("Profile creation error:", error);
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.error || "Failed to create profile";
+        Alert.alert("Error", errorMessage);
+      } else if (error.request) {
+        Alert.alert("Error", "Network error. Please check your connection.");
+      } else {
+        Alert.alert("Error", "An unexpected error occurred. Please try again.");
+      }
     }
   };
 
@@ -119,7 +184,11 @@ export default function ProfileScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
       >
-        <View style={styles.container}>
+        <ScrollView 
+           style={styles.scrollView} 
+           contentContainerStyle={styles.container}
+           nestedScrollEnabled={true}
+         >
         <Text style={styles.title}>Create your Profile</Text>
 
       <Text style={styles.label}>First Name</Text>
@@ -170,6 +239,7 @@ export default function ProfileScreen() {
         value={formData.contactNumber}
         onChangeText={(text) => handleChange("contactNumber", text)}
         onBlur={() => handleBlur("contactNumber")}
+        maxLength={11}
       />
       {touched.contactNumber && errors.contactNumber && <Text style={styles.errorText}>{errors.contactNumber}</Text>}
 
@@ -237,20 +307,23 @@ export default function ProfileScreen() {
       {touched.role && errors.role && <Text style={styles.errorText}>{errors.role}</Text>}
 
 
-        <TouchableOpacity style={styles.button} onPress={handleDone}>
+        <TouchableOpacity style={styles.button} onPress={handleSubmit}>
           <Text style={styles.buttonText}>Done</Text>
         </TouchableOpacity>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scrollView: {
     flex: 1,
+  },
+  container: {
     padding: 25,
     backgroundColor: "#fff",
+    flexGrow: 1,
   },
   title: {
     fontSize: 28,

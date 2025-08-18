@@ -144,9 +144,9 @@ class ProfileSerializer(serializers.ModelSerializer):
         """Validate contact number format."""
         if value:
             clean_number = value.replace(' ', '').replace('-', '')
-            if not re.match(r'^[+]?[0-9]{10,15}$', clean_number):
+            if not re.match(r'^[0-9]{11}$', clean_number):
                 raise serializers.ValidationError(
-                    'Contact number must be 10-15 digits and may start with +'
+                    'Contact number must be exactly 11 numeric digits'
                 )
         return value
     

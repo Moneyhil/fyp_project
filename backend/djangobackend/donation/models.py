@@ -234,11 +234,11 @@ class Profile(models.Model):
         
         # Validate contact number format
         if self.contact_number:
-            # Remove spaces and check if it contains only digits and + symbol
+            # Remove spaces and check if it contains only digits
             clean_number = self.contact_number.replace(' ', '').replace('-', '')
-            if not re.match(r'^[+]?[0-9]{10,15}$', clean_number):
+            if not re.match(r'^[0-9]{11}$', clean_number):
                 raise ValidationError({
-                    'contact_number': 'Contact number must be 10-15 digits and may start with +'
+                    'contact_number': 'Contact number must be exactly 11 numeric digits'
                 })
         
         # Validate name fields don't contain numbers or special characters

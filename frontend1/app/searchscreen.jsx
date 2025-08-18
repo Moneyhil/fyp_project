@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { router } from 'expo-router';
 
@@ -24,14 +24,39 @@ export default function SearchDonorsScreen() {
     { label: 'Lahore', value: 'Lahore' },
     { label: 'Islamabad', value: 'Islamabad' },
     { label: 'Faisalabad', value: 'Faisalabad' },
+,
   ]);
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Need Blood</Text>
-      <Text style={styles.subtitle}>Find compatible blood donors near you..!!</Text>
+  const handleSearch = () => {
+    if (!bloodValue || !cityValue) {
+      Alert.alert('Validation Error', 'Please select both blood group and city.');
+      return;
+    }
 
-      <View>
+    // Navigate to donor list screen with search parameters
+    router.push({
+      pathname: '/donorlist',
+      params: {
+        bloodGroup: bloodValue,
+        city: cityValue,
+      },
+    });
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Need Blood</Text>
+      </View>
+      <View style={styles.content}>
+        <Text style={styles.subtitle}>Find compatible blood donors near you..!!</Text>
         <Text style={styles.Title}>Search Donors</Text>
 
         <Text style={styles.label}>Search by Blood Type</Text>
@@ -62,43 +87,66 @@ export default function SearchDonorsScreen() {
 
         <TouchableOpacity
           style={styles.searchButton}
-          onPress={() => router.push('/resultscreen')}
-        ><Text style={styles.searchButtonText}>Search</Text>
+          onPress={handleSearch}
+        ><Text style={styles.searchButtonText}>Search Donors</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
    container: { 
-    padding: 25,
-    justifyContent: "center",
-    alignItems: 'center',
+    flex: 1,
     backgroundColor: "#fff",
-    flexGrow: 1 
+   },
+   header: {
+    backgroundColor: '#d40000',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#2c0101',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+   },
+   backButton: {
+    marginRight: 15,
+   },
+   backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
    },
    title: { 
-    fontSize: 26, 
+    fontSize: 20, 
     fontWeight: 'bold', 
     color: '#fff', 
-    backgroundColor: '#d40000', 
-    width: '100%', 
-    textAlign: 'center', 
-    paddingVertical: 20,
+    flex: 1,
+   },
+   content: {
+    padding: 25,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
    },
    subtitle: { 
-    fontSize: 14, 
-    textAlign: 'center', 
-    marginVertical: 10, 
-    color: '#555' 
+    fontSize: 16, 
+    color: '#666', 
+    marginBottom: 30, 
+    textAlign: 'center' 
    },
    Title: { 
-    alignItems: 'center',
-    fontSize: 25,
+    fontSize: 20, 
     fontWeight: 'bold', 
-    color: '#d40000', 
-    marginBottom: 20 
+    color: '#333', 
+    marginBottom: 20, 
+    textAlign: 'center' 
    },
    label: { 
     fontWeight: "bold",

@@ -385,6 +385,38 @@ class LoginView(APIView):
         )
 
 
+class LogoutView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='10/m'))
+    def post(self, request):
+        """Logout user by blacklisting refresh token."""
+        try:
+            refresh_token = request.data.get('refresh_token')
+            
+            if not refresh_token:
+                return Response(
+                    {"error": "Refresh token is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Blacklist the refresh token
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            
+            return Response(
+                {"message": "Logout successful"},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            logger.error(f"Logout error: {e}")
+            return Response(
+                {"error": "Invalid or expired token"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
 # =====================================================
 # 🔹 PROFILE MANAGEMENT VIEWS
 # =====================================================
@@ -481,70 +513,6 @@ class ProfileDetailView(APIView):
             )
 
 
-class ProfileListView(APIView):
-    permission_classes = [AllowAny]  # Change to IsAdminUser for production
-    
-    @method_decorator(ratelimit(key='ip', rate='30/m'))
-    def get(self, request):
-        """Get all profiles for admin panel."""
-        try:
-            profiles = Profile.objects.all().select_related('user').order_by('-created_at')
-            serializer = ProfileSerializer(profiles, many=True)
-            return Response(
-                {
-                    "profiles": serializer.data,
-                    "count": profiles.count()
-                },
-                status=status.HTTP_200_OK
-            )
-            
-        except Exception as e:
-            logger.error(f"Profile list error: {e}")
-            return Response(
-                {"error": "Internal server error"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
-class ProfileUpdateView(APIView):
-    permission_classes = [AllowAny]
-    
-    @method_decorator(ratelimit(key='ip', rate='10/m'))
-    def put(self, request, profile_id):
-        """Update profile by ID."""
-        try:
-            try:
-                profile = Profile.objects.get(id=profile_id)
-            except Profile.DoesNotExist:
-                return Response(
-                    {"error": "Profile not found"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            serializer = ProfileSerializer(profile, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(
-                    {
-                        "message": "Profile updated successfully",
-                        "profile": serializer.data
-                    },
-                    status=status.HTTP_200_OK
-                )
-            else:
-                return Response(
-                    {"error": serializer.errors},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-                
-        except Exception as e:
-            logger.error(f"Profile update error: {e}")
-            return Response(
-                {"error": "Internal server error"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
 class ProfileDeleteView(APIView):
     permission_classes = [AllowAny]  # Change to IsAdminUser for production
     
@@ -571,4 +539,50 @@ class ProfileDeleteView(APIView):
             return Response(
                 {"error": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class DonorSearchView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='30/m'))
+    def get(self, request):
+        try:
+            blood_group = request.GET.get('blood_group')
+            city = request.GET.get('city')
+            
+            if not blood_group or not city:
+                return Response(
+                    {"error": "Both blood_group and city parameters are required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Filter profiles by blood group, city, and role='donor'
+            donor_profiles = Profile.objects.filter(
+                blood_group=blood_group,
+                city=city,
+                role='donor'
+            ).select_related('user')
+            
+            # Serialize the donor profiles
+            serializer = ProfileSerializer(donor_profiles, many=True)
+            
+            return Response(
+                {
+                    "success": True,
+                    "message": f"Found {len(serializer.data)} donors",
+                    "donors": serializer.data,
+                    "search_criteria": {
+                        "blood_group": blood_group,
+                        "city": city
+                    }
+                },
+                status=status.HTTP_200_OK,
+            )
+            
+        except Exception as e:
+            logger.error(f"Error searching donors: {str(e)}")
+            return Response(
+                {"error": "An error occurred while searching for donors"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

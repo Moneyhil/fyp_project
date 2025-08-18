@@ -64,11 +64,14 @@ export default function Login() {
       );
 
       if (response.status === 200) {
-        const { token, access_token, user } = response.data;
+        const { token, access_token, refresh_token, user } = response.data;
         const authToken = token || access_token; // Handle both field names
 
-        // Store token & user info
+        // Store tokens & user info
         await AsyncStorage.setItem("authToken", authToken);
+        if (refresh_token) {
+          await AsyncStorage.setItem("refreshToken", refresh_token);
+        }
         await AsyncStorage.setItem("user", JSON.stringify(user));
 
         Alert.alert("Success", "Login successful!");
