@@ -19,13 +19,14 @@ from django.contrib.auth.decorators import user_passes_test
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
 
-from .models import User
+from .models import User, Profile
 from .serializers import (
     UserSerializer,
     SendOTPSerializer,
     OTPVerifySerializer,
     LoginSerializer,
     UserResponseSerializer,
+    ProfileSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -278,6 +279,81 @@ class VerifyOTPView(APIView):
             status=status.HTTP_200_OK
         )
 
+# =====================================================
+# 🔹 USER PASSWORD RESET VIEWS
+# =====================================================
+
+@method_decorator(ratelimit(key='ip', rate='5/m'), name='dispatch')
+class UserForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        email = request.data.get("email", "").lower().strip()
+        
+        if not email:
+            return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(email=email, is_staff=False)
+            otp = str(secrets.randbelow(900000) + 100000)  # Secure 6-digit OTP
+            cache.set(f"user_pw_reset_{email}", otp, timeout=600)  # 10 min expiry
+            
+            send_mail(
+                "Password Reset OTP",
+                f"Your password reset OTP is: {otp}. This OTP will expire in 10 minutes.",
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                fail_silently=False
+            )
+            return Response({"message": "OTP sent to your email"}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"error": "User account not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Password reset email error: {str(e)}")
+            return Response({"error": "Failed to send email"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@method_decorator(ratelimit(key='ip', rate='5/m'), name='dispatch')
+class UserVerifyResetOTPView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        email = request.data.get("email", "").lower().strip()
+        otp = request.data.get("otp", "")
+        
+        if not all([email, otp]):
+            return Response({"error": "Email and OTP are required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        cached_otp = cache.get(f"user_pw_reset_{email}")
+        
+        if cached_otp and cached_otp == otp:
+            return Response({"message": "OTP verified successfully"}, status=status.HTTP_200_OK)
+        return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
+
+@method_decorator(ratelimit(key='ip', rate='5/m'), name='dispatch')
+class UserResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        email = request.data.get("email", "").lower().strip()
+        otp = request.data.get("otp", "")
+        new_password = request.data.get("new_password", "")
+        
+        if not all([email, otp, new_password]):
+            return Response({"error": "Email, OTP, and new password are required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        cached_otp = cache.get(f"user_pw_reset_{email}")
+        
+        if cached_otp and cached_otp == otp:
+            try:
+                user = User.objects.get(email=email, is_staff=False)
+                user.set_password(new_password)
+                user.save()
+                cache.delete(f"user_pw_reset_{email}")
+                return Response({"message": "Password reset successful"}, status=status.HTTP_200_OK)
+            except User.DoesNotExist:
+                return Response({"error": "User account not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -307,3 +383,192 @@ class LoginView(APIView):
             },
             status=status.HTTP_200_OK
         )
+
+
+# =====================================================
+# 🔹 PROFILE MANAGEMENT VIEWS
+# =====================================================
+
+class ProfileCreateView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='10/m'))
+    def post(self, request):
+        """Create or update user profile."""
+        try:
+            # Get user from email in request
+            email = request.data.get('email')
+            if not email:
+                return Response(
+                    {"error": "Email is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                return Response(
+                    {"error": "User not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get or create profile
+            profile, created = Profile.objects.get_or_create(user=user)
+            
+            # Update profile with request data
+            serializer = ProfileSerializer(profile, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(
+                    {
+                        "message": "Profile created successfully" if created else "Profile updated successfully",
+                        "profile": serializer.data
+                    },
+                    status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {"error": serializer.errors},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        except Exception as e:
+            logger.error(f"Profile creation error: {e}")
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ProfileDetailView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='20/m'))
+    def get(self, request, email=None):
+        """Get user profile by email."""
+        try:
+            if not email:
+                return Response(
+                    {"error": "Email parameter is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                user = User.objects.get(email=email)
+                profile = Profile.objects.get(user=user)
+            except User.DoesNotExist:
+                return Response(
+                    {"error": "User not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            except Profile.DoesNotExist:
+                return Response(
+                    {"error": "Profile not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            serializer = ProfileSerializer(profile)
+            return Response(
+                {"profile": serializer.data},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            logger.error(f"Profile retrieval error: {e}")
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ProfileListView(APIView):
+    permission_classes = [AllowAny]  # Change to IsAdminUser for production
+    
+    @method_decorator(ratelimit(key='ip', rate='30/m'))
+    def get(self, request):
+        """Get all profiles for admin panel."""
+        try:
+            profiles = Profile.objects.all().select_related('user').order_by('-created_at')
+            serializer = ProfileSerializer(profiles, many=True)
+            return Response(
+                {
+                    "profiles": serializer.data,
+                    "count": profiles.count()
+                },
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            logger.error(f"Profile list error: {e}")
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ProfileUpdateView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='10/m'))
+    def put(self, request, profile_id):
+        """Update profile by ID."""
+        try:
+            try:
+                profile = Profile.objects.get(id=profile_id)
+            except Profile.DoesNotExist:
+                return Response(
+                    {"error": "Profile not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            serializer = ProfileSerializer(profile, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(
+                    {
+                        "message": "Profile updated successfully",
+                        "profile": serializer.data
+                    },
+                    status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {"error": serializer.errors},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        except Exception as e:
+            logger.error(f"Profile update error: {e}")
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ProfileDeleteView(APIView):
+    permission_classes = [AllowAny]  # Change to IsAdminUser for production
+    
+    @method_decorator(ratelimit(key='ip', rate='10/m'))
+    def delete(self, request, profile_id):
+        """Delete profile by ID."""
+        try:
+            try:
+                profile = Profile.objects.get(id=profile_id)
+            except Profile.DoesNotExist:
+                return Response(
+                    {"error": "Profile not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            profile.delete()
+            return Response(
+                {"message": "Profile deleted successfully"},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            logger.error(f"Profile deletion error: {e}")
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

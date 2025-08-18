@@ -13,7 +13,7 @@ export default function ForgetPassword() {
     }
 
     try {
-      const response = await fetch('http://YOUR_BACKEND_URL/reset-password/', {
+      const response = await fetch('http://192.168.100.16:8000/donation/forgot-password/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -22,8 +22,16 @@ export default function ForgetPassword() {
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert('Success', data.message || 'Password reset link sent');
-        router.push('/signin'); // navigate to login screen
+        Alert.alert(
+          'OTP Sent!', 
+          data.message || 'A verification code has been sent to your email.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.push({ pathname: '/resetpassword', params: { email } })
+            }
+          ]
+        );
       } else {
         Alert.alert('Error', data.error || 'Failed to reset password');
       }

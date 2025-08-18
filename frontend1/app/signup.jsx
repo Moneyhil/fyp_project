@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import axios from "axios";
 import * as Yup from "yup";
@@ -130,9 +130,14 @@ export default function Registration() {
     }
   };
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View>
-        <Text style={styles.heading}>Sign Up</Text>
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+    >
+      <ScrollView contentContainerStyle={styles.container}>
+        <View>
+          <Text style={styles.heading}>Sign Up</Text>
 
         <Text style={styles.label}>Full Name</Text>
         <TextInput
@@ -213,8 +218,9 @@ export default function Registration() {
             Log In
           </Text>
         </Text>
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

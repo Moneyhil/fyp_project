@@ -36,7 +36,7 @@ export default function OTPVerification() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // API Configuration
-  const API_BASE_URL = "http://192.168.100.16:8000";
+  const API_BASE_URL = "http://192.168.100.16:8000"; // your Django backend
   const API_ENDPOINTS = {
     VERIFY_OTP: '/donation/verify-otp/',
     SEND_OTP: '/donation/send-otp/',
@@ -143,11 +143,11 @@ export default function OTPVerification() {
         
         Alert.alert(
           "Verification Successful!",
-          "Your email has been verified. Welcome to the app!",
+          "Your email has been verified. Please complete your profile!",
           [
             {
               text: "Continue",
-              onPress: () => router.replace('/home')
+              onPress: () => router.replace('/profile')
             }
           ]
         );

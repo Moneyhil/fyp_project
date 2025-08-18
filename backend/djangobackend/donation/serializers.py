@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, Profile
 import re
 from django.core.mail import send_mail
 from django.conf import settings
@@ -120,3 +120,56 @@ class UserResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "name", "email", "is_verified"]
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    user_name = serializers.CharField(source='user.name', read_only=True)
+    full_name = serializers.CharField(read_only=True)
+    
+    class Meta:
+        model = Profile
+        fields = [
+            'id', 'user', 'user_email', 'user_name', 'first_name', 'last_name', 
+            'full_name', 'contact_number', 'address', 'gender', 'city', 
+            'blood_group', 'role', 'created_at', 'updated_at'
+        ]
+        extra_kwargs = {
+            'user': {'read_only': True},
+            'created_at': {'read_only': True},
+            'updated_at': {'read_only': True}
+        }
+    
+    def validate_contact_number(self, value):
+        """Validate contact number format."""
+        if value:
+            clean_number = value.replace(' ', '').replace('-', '')
+            if not re.match(r'^[+]?[0-9]{10,15}$', clean_number):
+                raise serializers.ValidationError(
+                    'Contact number must be 10-15 digits and may start with +'
+                )
+        return value
+    
+    def validate_first_name(self, value):
+        """Validate first name contains only letters and spaces."""
+        if value and not re.match(r'^[a-zA-Z\s]+$', value):
+            raise serializers.ValidationError(
+                'First name should only contain letters and spaces'
+            )
+        return value
+    
+    def validate_last_name(self, value):
+        """Validate last name contains only letters and spaces."""
+        if value and not re.match(r'^[a-zA-Z\s]+$', value):
+            raise serializers.ValidationError(
+                'Last name should only contain letters and spaces'
+            )
+        return value
+    
+    def validate_city(self, value):
+        """Validate city name contains only letters and spaces."""
+        if value and not re.match(r'^[a-zA-Z\s]+$', value):
+            raise serializers.ValidationError(
+                'City name should only contain letters and spaces'
+            )
+        return value

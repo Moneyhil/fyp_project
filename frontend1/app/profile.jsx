@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 import { router } from "expo-router";
 
@@ -113,8 +113,14 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Create your Profile</Text>
+    <SafeAreaView style={{ flex: 1 }}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      >
+        <View style={styles.container}>
+        <Text style={styles.title}>Create your Profile</Text>
 
       <Text style={styles.label}>First Name</Text>
       <TextInput
@@ -231,19 +237,20 @@ export default function ProfileScreen() {
       {touched.role && errors.role && <Text style={styles.errorText}>{errors.role}</Text>}
 
 
-      <TouchableOpacity style={styles.button} onPress={handleDone}>
-        <Text style={styles.buttonText}>Done</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity style={styles.button} onPress={handleDone}>
+          <Text style={styles.buttonText}>Done</Text>
+        </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     padding: 25,
-    justifyContent: "center",
     backgroundColor: "#fff",
-    flexGrow: 1,
   },
   title: {
     fontSize: 28,

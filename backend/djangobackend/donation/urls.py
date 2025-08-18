@@ -19,5 +19,17 @@ urlpatterns = [
     path('send-otp/', views.send_otp, name='send-otp'),
     path('verify-otp/', views.VerifyOTPView.as_view(), name='verify-otp'),
     path('login/', views.LoginView.as_view(), name='login'),
+    
+    # User password reset
+    path('forgot-password/', views.UserForgotPasswordView.as_view(), name='user-forgot-password'),
+    path('verify-reset-otp/', views.UserVerifyResetOTPView.as_view(), name='user-verify-reset-otp'),
+    path('reset-password/', views.UserResetPasswordView.as_view(), name='user-reset-password'),
+    
+    # Profile management
+    path('profile/create/', views.ProfileCreateView.as_view(), name='profile-create'),
+    path('profile/<str:email>/', views.ProfileDetailView.as_view(), name='profile-detail'),
+    path('profiles/', views.ProfileListView.as_view(), name='profile-list'),
+    path('profile/update/<int:profile_id>/', views.ProfileUpdateView.as_view(), name='profile-update'),
+    path('profile/delete/<int:profile_id>/', views.ProfileDeleteView.as_view(), name='profile-delete'),
 ]
 

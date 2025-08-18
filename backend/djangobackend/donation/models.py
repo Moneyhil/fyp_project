@@ -139,3 +139,139 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.otp_secret = None
         self.otp_created_at = None
         self.otp_expires_at = None
+
+
+class Profile(models.Model):
+    """
+    User profile model to store additional user information.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    first_name = models.CharField(
+        _('First Name'), 
+        max_length=50, 
+        blank=True, 
+        null=True,
+        help_text='Enter your first name (max 50 characters)'
+    )
+    last_name = models.CharField(
+        _('Last Name'), 
+        max_length=50, 
+        blank=True, 
+        null=True,
+        help_text='Enter your last name (max 50 characters)'
+    )
+    contact_number = models.CharField(
+        _('Contact Number'), 
+        max_length=15, 
+        blank=True, 
+        null=True,
+        help_text='Enter a valid contact number (max 15 digits)'
+    )
+    address = models.TextField(
+        _('Address'), 
+        blank=True, 
+        null=True,
+        help_text='Enter your complete address'
+    )
+    gender = models.CharField(
+        _('Gender'), 
+        max_length=10, 
+        choices=[
+            ('male', 'Male'),
+            ('female', 'Female'),
+            ('other', 'Other')
+        ], 
+        blank=True, 
+        null=True,
+        help_text='Select your gender'
+    )
+    city = models.CharField(
+        _('City'), 
+        max_length=50, 
+        blank=True, 
+        null=True,
+        help_text='Enter your city name (max 50 characters)'
+    )
+    blood_group = models.CharField(
+        _('Blood Group'), 
+        max_length=5, 
+        choices=[
+            ('A+', 'A+'),
+            ('A-', 'A-'),
+            ('B+', 'B+'),
+            ('B-', 'B-'),
+            ('O+', 'O+'),
+            ('O-', 'O-'),
+            ('AB+', 'AB+'),
+            ('AB-', 'AB-')
+        ], 
+        blank=True, 
+        null=True,
+        help_text='Select your blood group'
+    )
+    role = models.CharField(
+        _('Role'), 
+        max_length=10, 
+        choices=[
+            ('donor', 'Donor'),
+            ('needer', 'Needer')
+        ], 
+        blank=True, 
+        null=True,
+        help_text='Select your role - Donor or Needer'
+    )
+    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Profile')
+        verbose_name_plural = _('Profiles')
+    
+    def clean(self):
+        """Custom validation for the Profile model."""
+        from django.core.exceptions import ValidationError
+        import re
+        
+        # Validate contact number format
+        if self.contact_number:
+            # Remove spaces and check if it contains only digits and + symbol
+            clean_number = self.contact_number.replace(' ', '').replace('-', '')
+            if not re.match(r'^[+]?[0-9]{10,15}$', clean_number):
+                raise ValidationError({
+                    'contact_number': 'Contact number must be 10-15 digits and may start with +'
+                })
+        
+        # Validate name fields don't contain numbers or special characters
+        if self.first_name:
+            if not re.match(r'^[a-zA-Z\s]+$', self.first_name):
+                raise ValidationError({
+                    'first_name': 'First name should only contain letters and spaces'
+                })
+        
+        if self.last_name:
+            if not re.match(r'^[a-zA-Z\s]+$', self.last_name):
+                raise ValidationError({
+                    'last_name': 'Last name should only contain letters and spaces'
+                })
+        
+        # Validate city name
+        if self.city:
+            if not re.match(r'^[a-zA-Z\s]+$', self.city):
+                raise ValidationError({
+                    'city': 'City name should only contain letters and spaces'
+                })
+    
+    def save(self, *args, **kwargs):
+        """Override save to call clean validation."""
+        self.clean()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.user.email} - Profile"
+    
+    @property
+    def full_name(self):
+        """Returns the full name of the user."""
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        return self.first_name or self.last_name or self.user.name

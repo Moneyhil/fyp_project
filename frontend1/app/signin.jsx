@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import axios from "axios";
 import * as Yup from "yup";
@@ -50,7 +50,7 @@ export default function Login() {
       setErrors({});
 
       const response = await axios.post(
-        "http://192.168.100.16:8000/login/",
+        "http://192.168.100.16:8000/donation/login/",
         {
           email: formData.email,
           password: formData.password,
@@ -109,9 +109,14 @@ export default function Login() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View>
-        <Text style={styles.heading}>Log In</Text>
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+    >
+      <ScrollView contentContainerStyle={styles.container}>
+        <View>
+          <Text style={styles.heading}>Log In</Text>
 
         <Text style={styles.label}>Email Address</Text>
         <TextInput
@@ -148,6 +153,10 @@ export default function Login() {
         </View>
         {touched.password && errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
+        <TouchableOpacity onPress={() => router.push('/forgetpassword')}>
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
           <Text style={styles.buttonText}>{loading ? "Processing..." : "Log In"}</Text>
         </TouchableOpacity>
@@ -158,8 +167,9 @@ export default function Login() {
             Sign Up
           </Text>
         </Text>
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -235,5 +245,13 @@ const styles = StyleSheet.create({
   Link: {
     color: "#0000ff",
     textDecorationLine: "underline",
+  },
+  forgotPasswordText: {
+    color: "#0000ff",
+    textAlign: "right",
+    marginTop: 10,
+    marginBottom: 10,
+    textDecorationLine: "underline",
+    fontSize: 14,
   },
 });
