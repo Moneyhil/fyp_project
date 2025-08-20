@@ -188,9 +188,15 @@ class Profile(models.Model):
     city = models.CharField(
         _('City'), 
         max_length=50, 
+        choices=[
+            ('Sheikhupura', 'Sheikhupura'),
+            ('Lahore', 'Lahore'),
+            ('Islamabad', 'Islamabad'),
+            ('Faisalabad', 'Faisalabad')
+        ],
         blank=True, 
         null=True,
-        help_text='Enter your city name (max 50 characters)'
+        help_text='Select your city'
     )
     blood_group = models.CharField(
         _('Blood Group'), 
@@ -275,3 +281,340 @@ class Profile(models.Model):
         if self.first_name and self.last_name:
             return f"{self.first_name} {self.last_name}"
         return self.first_name or self.last_name or self.user.name
+
+
+class DonationRequest(models.Model):
+    """
+    Model to track blood donation requests between users (needers) and donors.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('user_accepted', 'User Accepted'),
+        ('donor_accepted', 'Donor Accepted'),
+        ('both_accepted', 'Both Accepted'),
+        ('user_declined', 'User Declined'),
+        ('donor_declined', 'Donor Declined'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    requester = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='donation_requests_made',
+        help_text='User who needs blood'
+    )
+    donor = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='donation_requests_received',
+        help_text='Donor who can provide blood'
+    )
+    blood_group = models.CharField(
+        _('Blood Group'), 
+        max_length=5, 
+        choices=[
+            ('A+', 'A+'),
+            ('A-', 'A-'),
+            ('B+', 'B+'),
+            ('B-', 'B-'),
+            ('O+', 'O+'),
+            ('O-', 'O-'),
+            ('AB+', 'AB+'),
+            ('AB-', 'AB-')
+        ],
+        help_text='Required blood group'
+    )
+    status = models.CharField(
+        _('Status'),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        help_text='Current status of the donation request'
+    )
+    user_response = models.BooleanField(
+        _('User Response'),
+        null=True,
+        blank=True,
+        help_text='True if user accepts, False if declines, None if no response'
+    )
+    donor_response = models.BooleanField(
+        _('Donor Response'),
+        null=True,
+        blank=True,
+        help_text='True if donor accepts, False if declines, None if no response'
+    )
+    urgency_level = models.CharField(
+        _('Urgency Level'),
+        max_length=10,
+        choices=[
+            ('low', 'Low'),
+            ('medium', 'Medium'),
+            ('high', 'High'),
+            ('critical', 'Critical')
+        ],
+        default='medium',
+        help_text='Urgency level of the blood requirement'
+    )
+    notes = models.TextField(
+        _('Notes'),
+        blank=True,
+        null=True,
+        help_text='Additional notes or requirements'
+    )
+    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+    expires_at = models.DateTimeField(
+        _('Expires At'),
+        null=True,
+        blank=True,
+        help_text='When this request expires'
+    )
+    
+    class Meta:
+        verbose_name = _('Donation Request')
+        verbose_name_plural = _('Donation Requests')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['requester', 'status']),
+            models.Index(fields=['donor', 'status']),
+            models.Index(fields=['blood_group', 'status']),
+        ]
+    
+    def __str__(self):
+        return f"Request from {self.requester.name} to {self.donor.name} for {self.blood_group}"
+    
+    def update_status(self):
+        """Update status based on user and donor responses."""
+        if self.user_response is True and self.donor_response is True:
+            self.status = 'both_accepted'
+        elif self.user_response is True and self.donor_response is None:
+            self.status = 'user_accepted'
+        elif self.user_response is None and self.donor_response is True:
+            self.status = 'donor_accepted'
+        elif self.user_response is False:
+            self.status = 'user_declined'
+        elif self.donor_response is False:
+            self.status = 'donor_declined'
+        else:
+            self.status = 'pending'
+        self.save()
+
+
+class CallLog(models.Model):
+    """
+    Model to track phone calls made between users and donors.
+    """
+    CALL_STATUS_CHOICES = [
+        ('initiated', 'Initiated'),
+        ('connected', 'Connected'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('no_answer', 'No Answer'),
+        ('busy', 'Busy'),
+    ]
+    
+    donation_request = models.ForeignKey(
+        DonationRequest,
+        on_delete=models.CASCADE,
+        related_name='call_logs',
+        help_text='Related donation request'
+    )
+    caller = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='calls_made',
+        help_text='User who made the call'
+    )
+    receiver = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='calls_received',
+        help_text='User who received the call'
+    )
+    call_status = models.CharField(
+        _('Call Status'),
+        max_length=15,
+        choices=CALL_STATUS_CHOICES,
+        default='initiated',
+        help_text='Status of the phone call'
+    )
+    duration_seconds = models.PositiveIntegerField(
+        _('Duration (seconds)'),
+        null=True,
+        blank=True,
+        help_text='Call duration in seconds'
+    )
+    started_at = models.DateTimeField(_('Started At'), auto_now_add=True)
+    ended_at = models.DateTimeField(
+        _('Ended At'),
+        null=True,
+        blank=True,
+        help_text='When the call ended'
+    )
+    notes = models.TextField(
+        _('Call Notes'),
+        blank=True,
+        null=True,
+        help_text='Notes about the call'
+    )
+    
+    class Meta:
+        verbose_name = _('Call Log')
+        verbose_name_plural = _('Call Logs')
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['donation_request', 'call_status']),
+            models.Index(fields=['caller', 'started_at']),
+        ]
+    
+    def __str__(self):
+        return f"Call from {self.caller.name} to {self.receiver.name} - {self.call_status}"
+
+
+class Message(models.Model):
+    """
+    Model for alert messaging system between users and donors.
+    """
+    MESSAGE_TYPE_CHOICES = [
+        ('alert', 'Alert'),
+        ('confirmation', 'Confirmation'),
+        ('reminder', 'Reminder'),
+        ('notification', 'Notification'),
+    ]
+    
+    DELIVERY_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('failed', 'Failed'),
+        ('read', 'Read'),
+    ]
+    
+    donation_request = models.ForeignKey(
+        DonationRequest,
+        on_delete=models.CASCADE,
+        related_name='messages',
+        null=True,
+        blank=True,
+        help_text='Related donation request'
+    )
+    sender = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='messages_sent',
+        help_text='User who sent the message'
+    )
+    recipient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='messages_received',
+        help_text='User who received the message'
+    )
+    message_type = models.CharField(
+        _('Message Type'),
+        max_length=15,
+        choices=MESSAGE_TYPE_CHOICES,
+        default='notification',
+        help_text='Type of message'
+    )
+    subject = models.CharField(
+        _('Subject'),
+        max_length=200,
+        help_text='Message subject'
+    )
+    content = models.TextField(
+        _('Content'),
+        help_text='Message content'
+    )
+    delivery_status = models.CharField(
+        _('Delivery Status'),
+        max_length=15,
+        choices=DELIVERY_STATUS_CHOICES,
+        default='pending',
+        help_text='Message delivery status'
+    )
+    phone_number = models.CharField(
+        _('Phone Number'),
+        max_length=15,
+        null=True,
+        blank=True,
+        help_text='Phone number for SMS delivery'
+    )
+    is_sms = models.BooleanField(
+        _('Is SMS'),
+        default=False,
+        help_text='Whether this message should be sent as SMS'
+    )
+    sms_sent = models.BooleanField(
+        _('SMS Sent'),
+        default=False,
+        help_text='Whether SMS has been sent'
+    )
+    sms_sent_at = models.DateTimeField(
+        _('SMS Sent At'),
+        null=True,
+        blank=True,
+        help_text='When the SMS was sent'
+    )
+    email_sent = models.BooleanField(
+        _('Email Sent'),
+        default=False,
+        help_text='Whether email has been sent'
+    )
+    email_sent_at = models.DateTimeField(
+        _('Email Sent At'),
+        null=True,
+        blank=True,
+        help_text='When the email was sent'
+    )
+    sent_at = models.DateTimeField(
+        _('Sent At'),
+        null=True,
+        blank=True,
+        help_text='When the message was sent'
+    )
+    delivered_at = models.DateTimeField(
+        _('Delivered At'),
+        null=True,
+        blank=True,
+        help_text='When the message was delivered'
+    )
+    read_at = models.DateTimeField(
+        _('Read At'),
+        null=True,
+        blank=True,
+        help_text='When the message was read'
+    )
+    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _('Message')
+        verbose_name_plural = _('Messages')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', 'delivery_status']),
+            models.Index(fields=['donation_request', 'message_type']),
+            models.Index(fields=['sender', 'created_at']),
+        ]
+    
+    def __str__(self):
+        return f"Message from {self.sender.name} to {self.recipient.name}: {self.subject}"
+    
+    def mark_as_sent(self):
+        """Mark message as sent."""
+        self.delivery_status = 'sent'
+        self.sent_at = timezone.now()
+        self.save()
+    
+    def mark_as_delivered(self):
+        """Mark message as delivered."""
+        self.delivery_status = 'delivered'
+        self.delivered_at = timezone.now()
+        self.save()
+    
+    def mark_as_read(self):
+        """Mark message as read."""
+        self.delivery_status = 'read'
+        self.read_at = timezone.now()
+        self.save()

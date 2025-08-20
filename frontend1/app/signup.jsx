@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import axios from "axios";
 import * as Yup from "yup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import api from "../constants/API";
 
 export default function Registration() {
   const router = useRouter();
@@ -79,13 +79,9 @@ export default function Registration() {
 
       console.log("Sending registration payload:", payload);
 
-      const response = await axios.post(
-        "http://192.168.100.16:8000/donation/registration/create/",
-        payload,
-        {
-          headers: { "Content-Type": "application/json" },
-          timeout: 30000,
-        }
+      const response = await api.post(
+        "/donation/registration/create/",
+        payload
       );
 
       console.log("Registration response:", response.data);

@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import axios from 'axios';
+import api from '../constants/API';
 
 export default function DonorListScreen() {
   const { bloodGroup, city } = useLocalSearchParams();
@@ -24,9 +24,17 @@ export default function DonorListScreen() {
   const fetchDonors = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(
-        `http://192.168.100.16:8000/donation/donors/search/?blood_group=${bloodGroup}&city=${city}`
-      );
+      console.log('Blood Group:', bloodGroup);
+      console.log('City:', city);
+      
+      const response = await api.get('/donation/donors/search/', {
+        params: {
+          blood_group: bloodGroup,
+          city: city
+        }
+      });
+      console.log('API Response:', response.data);
+      
       setDonors(response.data.donors || []);
     } catch (error) {
       console.error('Error fetching donors:', error);

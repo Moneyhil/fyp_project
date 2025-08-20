@@ -8,10 +8,11 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import { getProfile } from '../constants/API';
 import { Ionicons } from '@expo/vector-icons';
+import { useCallback } from 'react';
 
 export default function UsersProfileScreen() {
   const [profileData, setProfileData] = useState(null);
@@ -22,12 +23,19 @@ export default function UsersProfileScreen() {
     fetchUserProfile();
   }, []);
 
+  // Refresh profile data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserProfile();
+    }, [])
+  );
+
   const fetchUserProfile = async () => {
     try {
       setLoading(true);
       
       // Debug: Check what's in AsyncStorage
-      const userString = await AsyncStorage.getItem('user');
+      const userString = await AsyncStorage.getItem('userData');
       const authToken = await AsyncStorage.getItem('authToken');
       
       console.log('Debug - User data:', userString);
@@ -43,13 +51,7 @@ export default function UsersProfileScreen() {
       const user = JSON.parse(userString);
       const email = user.email;
 
-      const response = await axios.get(
-        `http://192.168.100.16:8000/donation/profile/${email}/`,
-        {
-          timeout: 10000,
-        }
-      );
-
+      const response = await getProfile(email);
       if (response.status === 200) {
         setProfileData(response.data.profile);
       }
@@ -65,9 +67,7 @@ export default function UsersProfileScreen() {
     }
   };
 
-  const handleCreateProfile = () => {
-    router.push('/profile');
-  };
+
 
   if (loading) {
     return (
@@ -97,9 +97,6 @@ export default function UsersProfileScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="person-circle-outline" size={80} color="#ccc" />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.createButton} onPress={handleCreateProfile}>
-            <Text style={styles.createButtonText}>Create Profile</Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -267,17 +264,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 20,
   },
-  createButton: {
-    backgroundColor: '#d40000',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-  },
-  createButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+
   content: {
     flex: 1,
     padding: 20,

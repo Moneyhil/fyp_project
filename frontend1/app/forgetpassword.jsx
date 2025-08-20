@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import api from '../constants/API';
 
 export default function ForgetPassword() {
   const [email, setEmail] = useState('');
@@ -13,18 +14,12 @@ export default function ForgetPassword() {
     }
 
     try {
-      const response = await fetch('http://192.168.100.16:8000/donation/forgot-password/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+      const response = await api.post('/donation/forgot-password/', { email });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (response.status === 200) {
         Alert.alert(
           'OTP Sent!', 
-          data.message || 'A verification code has been sent to your email.',
+          response.data.message || 'A verification code has been sent to your email.',
           [
             {
               text: 'OK',
@@ -33,7 +28,7 @@ export default function ForgetPassword() {
           ]
         );
       } else {
-        Alert.alert('Error', data.error || 'Failed to reset password');
+        Alert.alert('Error', response.data.error || 'Failed to reset password');
       }
     } catch (error) {
       console.error(error);

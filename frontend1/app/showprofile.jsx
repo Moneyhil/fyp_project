@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,15 +8,81 @@ import {
   ScrollView,
   Linking,
   Alert,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import api, { createDonationRequest, createCallLog, respondToDonationRequest } from '../constants/API';
 
 export default function ShowProfileScreen() {
   const { donorData } = useLocalSearchParams();
   const donor = JSON.parse(donorData);
+  const [showPostCallModal, setShowPostCallModal] = useState(false);
+  const [donationRequestId, setDonationRequestId] = useState(null);
+  const [callStartTime, setCallStartTime] = useState(null);
 
-  const handleCall = () => {
+  const createDonationRequest = async () => {
+    try {
+      const response = await createDonationRequest({
+        donor_id: donor.id,
+        blood_group: donor.blood_group,
+        urgency_level: 'medium',
+        notes: `Blood donation request for ${donor.blood_group} blood group`
+      });
+      
+      if (response.data.success) {
+        return response.data.data.id;
+      }
+    } catch (error) {
+      console.error('Error creating donation request:', error);
+      Alert.alert('Error', 'Failed to create donation request');
+    }
+    return null;
+  };
+
+  const logCall = async (duration, outcome) => {
+    try {
+      await createCallLog({
+        donor_id: donor.id,
+        duration: duration,
+        outcome: outcome,
+        notes: `Call to ${donor.full_name} regarding blood donation`
+      });
+    } catch (error) {
+      console.error('Error logging call:', error);
+    }
+  };
+
+  const handleUserResponse = async (agreed) => {
+    try {
+      if (donationRequestId) {
+        await respondToDonationRequest(donationRequestId, {
+          response: agreed,
+          notes: agreed ? 'User confirmed need for blood donation' : 'User declined blood donation request'
+        });
+        
+        if (agreed) {
+          Alert.alert(
+            'Request Sent',
+            `A donation request has been sent to ${donor.full_name}. They will receive a message asking if they agree to donate blood to you.`,
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+        } else {
+          Alert.alert(
+            'Request Cancelled',
+            'The donation request has been cancelled.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error responding to donation request:', error);
+      Alert.alert('Error', 'Failed to process your response');
+    }
+    setShowPostCallModal(false);
+  };
+
+  const handleCall = async () => {
     const phoneNumber = donor.contact_number;
     if (phoneNumber) {
       Alert.alert(
@@ -29,8 +95,19 @@ export default function ShowProfileScreen() {
           },
           {
             text: 'Call',
-            onPress: () => {
+            onPress: async () => {
+              // Create donation request before making the call
+              const requestId = await createDonationRequest();
+              setDonationRequestId(requestId);
+              setCallStartTime(new Date());
+              
+              // Make the call
               Linking.openURL(`tel:${phoneNumber}`);
+              
+              // Show post-call modal after a delay (simulating call end)
+              setTimeout(() => {
+                setShowPostCallModal(true);
+              }, 3000); // 3 second delay to simulate call
             },
           },
         ]
@@ -39,6 +116,44 @@ export default function ShowProfileScreen() {
       Alert.alert('Error', 'Phone number not available');
     }
   };
+
+  const PostCallModal = () => (
+    <Modal
+      visible={showPostCallModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowPostCallModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Ionicons name="call" size={24} color="#d40000" />
+            <Text style={styles.modalTitle}>Call Completed</Text>
+          </View>
+          
+          <Text style={styles.modalMessage}>
+            Did {donor.full_name} agree to donate blood to you?
+          </Text>
+          
+          <View style={styles.modalButtons}>
+            <TouchableOpacity 
+              style={[styles.modalButton, styles.noButton]} 
+              onPress={() => handleUserResponse(false)}
+            >
+              <Text style={styles.noButtonText}>No</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.modalButton, styles.yesButton]} 
+              onPress={() => handleUserResponse(true)}
+            >
+              <Text style={styles.yesButtonText}>Yes</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
 
 
@@ -145,6 +260,8 @@ export default function ShowProfileScreen() {
           <Text style={styles.buttonText}>Call Now</Text>
         </TouchableOpacity>
       </View>
+      
+      <PostCallModal />
     </SafeAreaView>
   );
 }
@@ -267,5 +384,72 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 25,
+    margin: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 10,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 25,
+    lineHeight: 22,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 15,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  noButton: {
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  yesButton: {
+    backgroundColor: '#d40000',
+  },
+  noButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  yesButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

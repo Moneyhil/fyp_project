@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import axios from "axios";
 import * as Yup from "yup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import api from "../constants/API";
 
 export default function Login() {
   const router = useRouter();
@@ -49,17 +49,11 @@ export default function Login() {
       await validationSchema.validate(formData, { abortEarly: false });
       setErrors({});
 
-      const response = await axios.post(
-        "http://192.168.100.16:8000/donation/login/",
+      const response = await api.post(
+        "/donation/login/",
         {
           email: formData.email,
           password: formData.password,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
         }
       );
 
@@ -166,7 +160,7 @@ export default function Login() {
 
         <Text style={styles.text}>
           Don't have an account?{" "}
-          <Text style={styles.Link} onPress={() => router.push("/registration")}>
+          <Text style={styles.Link} onPress={() => router.push("/signup")}>
             Sign Up
           </Text>
         </Text>

@@ -20,11 +20,10 @@ export default function SearchDonorsScreen() {
   const [cityOpen, setCityOpen] = useState(false);
   const [cityValue, setCityValue] = useState(null);
   const [cityItems, setCityItems] = useState([
-    { label: 'Shiekhupura', value: 'Shiekhupura' },
+    { label: 'Sheikhupura', value: 'Sheikhupura' },
     { label: 'Lahore', value: 'Lahore' },
     { label: 'Islamabad', value: 'Islamabad' },
     { label: 'Faisalabad', value: 'Faisalabad' },
-,
   ]);
 
   const handleSearch = () => {

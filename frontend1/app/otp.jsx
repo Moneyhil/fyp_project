@@ -14,9 +14,9 @@ import {
   ScrollView
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import api from '../constants/API';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,8 +35,7 @@ export default function OTPVerification() {
   const inputRefs = useRef([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // API Configuration
-  const API_BASE_URL = "http://192.168.100.16:8000"; // your Django backend
+  // API Endpoints
   const API_ENDPOINTS = {
     VERIFY_OTP: '/donation/verify-otp/',
     SEND_OTP: '/donation/send-otp/',
@@ -112,18 +111,11 @@ export default function OTPVerification() {
     setError('');
 
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}${API_ENDPOINTS.VERIFY_OTP}`,
+      const response = await api.post(
+        API_ENDPOINTS.VERIFY_OTP,
         {
           email: email,
           otp: otpToVerify,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          timeout: 30000,
         }
       );
 
@@ -193,17 +185,10 @@ export default function OTPVerification() {
     setError('');
 
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}${API_ENDPOINTS.SEND_OTP}`,
+      const response = await api.post(
+        API_ENDPOINTS.SEND_OTP,
         {
           email: email,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          timeout: 30000,
         }
       );
 

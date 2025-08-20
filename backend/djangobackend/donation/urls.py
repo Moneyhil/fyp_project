@@ -29,9 +29,20 @@ urlpatterns = [
     # Profile management
     path('profile/create/', views.ProfileCreateView.as_view(), name='profile-create'),
     path('profile/<str:email>/', views.ProfileDetailView.as_view(), name='profile-detail'),
-    path('profile/delete/<int:profile_id>/', views.ProfileDeleteView.as_view(), name='profile-delete'),
     
     # Donor search
     path('donors/search/', views.DonorSearchView.as_view(), name='donor-search'),
+    
+    # Donation requests
+    path('donation-requests/create/', views.DonationRequestCreateView.as_view(), name='donation-request-create'),
+    path('donation-requests/', views.DonationRequestListView.as_view(), name='donation-request-list'),
+    path('donation-requests/<int:request_id>/respond/', views.DonationRequestResponseView.as_view(), name='donation-request-respond'),
+    
+    # Call logs
+    path('call-logs/create/', views.CallLogCreateView.as_view(), name='call-log-create'),
+    
+    # Messages
+    path('messages/', views.MessageListView.as_view(), name='message-list'),
+    path('messages/<int:message_id>/read/', views.MessageMarkReadView.as_view(), name='message-mark-read'),
 ]
 

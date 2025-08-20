@@ -2,9 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, FlatList, StyleSheet, ActivityIndicator } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import axios from "axios";
-
-const API_BASE_URL = "http://192.168.100.16:8000"; // your Django backend
+import api from '../constants/API';
 
 export default function ResultScreen() {
   const { city, bloodGroup } = useLocalSearchParams();
@@ -18,7 +16,7 @@ export default function ResultScreen() {
   const fetchDonors = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/api/donors/`, {
+      const response = await api.get('/api/donors/', {
         params: { city, blood_group: bloodGroup },
       });
       setDonors(response.data);

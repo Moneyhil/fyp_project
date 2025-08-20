@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import api from '../constants/API';
 
 export default function HomeScreen() {
   const handleLogout = async () => {
@@ -12,13 +12,9 @@ export default function HomeScreen() {
       
       if (refreshToken) {
         // Send logout request to backend
-        await axios.post(
-          'http://192.168.100.16:8000/donation/logout/',
-          { refresh_token: refreshToken },
-          {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 10000,
-          }
+        await api.post(
+          '/donation/logout/',
+          { refresh_token: refreshToken }
         );
       }
     } catch (error) {
@@ -66,7 +62,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.button} onPress={() => router.push('/about')}>
-            <Text style={styles.buttonText}>About Us</Text>
+            <Text style={styles.buttonText}>About</Text>
           </TouchableOpacity>
         </View>
 

@@ -3,7 +3,7 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingVi
 import DropDownPicker from "react-native-dropdown-picker";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
+import { createProfile } from "../constants/API";
 
 export default function ProfileScreen() {
   const [formData, setFormData] = useState({
@@ -112,7 +112,7 @@ export default function ProfileScreen() {
 
     try {
       // Get user email from storage
-      const userString = await AsyncStorage.getItem("user");
+      const userString = await AsyncStorage.getItem("userData");
       if (!userString) {
         Alert.alert("Error", "User not found. Please login again.");
         router.replace("/signin");
@@ -136,16 +136,7 @@ export default function ProfileScreen() {
       };
 
       // Send profile data to backend
-      const response = await axios.post(
-        "http://192.168.100.16:8000/donation/profile/create/",
-        profileData,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          timeout: 10000,
-        }
-      );
+      const response = await createProfile(profileData);
 
       if (response.status === 201 || response.status === 200) {
         Alert.alert(

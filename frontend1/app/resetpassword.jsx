@@ -15,6 +15,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Yup from 'yup';
+import api from '../constants/API';
 
 export default function ResetPassword() {
   const router = useRouter();
@@ -33,8 +34,7 @@ export default function ResetPassword() {
   const inputRefs = useRef([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // API Configuration
-  const API_BASE_URL = "http://192.168.100.16:8000";
+
 
   // Validation schema for password
   const passwordSchema = Yup.object().shape({
@@ -90,28 +90,18 @@ export default function ResetPassword() {
     setError('');
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/donation/verify-reset-otp/`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: email,
-            otp: otpCode,
-          }),
-        }
-      );
+      const response = await api.post('/donation/verify-reset-otp/', {
+        email: email,
+        otp: otpCode,
+      });
 
-      const data = await response.json();
-      console.log('OTP verification response:', data);
+      console.log('OTP verification response:', response.data);
       console.log('Response status:', response.status);
 
-      if (response.ok) {
+      if (response.status === 200) {
         setStep(2); // Move to password reset step
       } else {
-        setError(data.error || 'Invalid verification code');
+        setError(response.data.error || 'Invalid verification code');
       }
     } catch (error) {
       console.error('OTP verification error:', error);
@@ -135,24 +125,13 @@ export default function ResetPassword() {
     setError('');
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/donation/reset-password/`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: email,
-            otp: otp.join(''),
-            new_password: newPassword,
-          }),
-        }
-      );
+      const response = await api.post('/donation/reset-password/', {
+        email: email,
+        otp: otp.join(''),
+        new_password: newPassword,
+      });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (response.status === 200) {
         Alert.alert(
           "Password Reset Successful!",
           "Your password has been reset successfully. Please log in with your new password.",
@@ -164,7 +143,7 @@ export default function ResetPassword() {
           ]
         );
       } else {
-        setError(data.error || 'Failed to reset password');
+        setError(response.data.error || 'Failed to reset password');
       }
     } catch (error) {
       console.error('Password reset error:', error);

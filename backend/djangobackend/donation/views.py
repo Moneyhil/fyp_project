@@ -19,7 +19,7 @@ from django.contrib.auth.decorators import user_passes_test
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
 
-from .models import User, Profile
+from .models import User, Profile, DonationRequest, CallLog, Message
 from .serializers import (
     UserSerializer,
     SendOTPSerializer,
@@ -27,7 +27,12 @@ from .serializers import (
     LoginSerializer,
     UserResponseSerializer,
     ProfileSerializer,
+    DonationRequestSerializer,
+    CallLogSerializer,
+    MessageSerializer,
+    DonationRequestResponseSerializer,
 )
+from .services import DonationRequestService, CallLogService, NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -513,33 +518,7 @@ class ProfileDetailView(APIView):
             )
 
 
-class ProfileDeleteView(APIView):
-    permission_classes = [AllowAny]  # Change to IsAdminUser for production
-    
-    @method_decorator(ratelimit(key='ip', rate='10/m'))
-    def delete(self, request, profile_id):
-        """Delete profile by ID."""
-        try:
-            try:
-                profile = Profile.objects.get(id=profile_id)
-            except Profile.DoesNotExist:
-                return Response(
-                    {"error": "Profile not found"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            profile.delete()
-            return Response(
-                {"message": "Profile deleted successfully"},
-                status=status.HTTP_200_OK
-            )
-            
-        except Exception as e:
-            logger.error(f"Profile deletion error: {e}")
-            return Response(
-                {"error": "Internal server error"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+
 
 
 class DonorSearchView(APIView):
@@ -585,4 +564,225 @@ class DonorSearchView(APIView):
             return Response(
                 {"error": "An error occurred while searching for donors"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class DonationRequestCreateView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='10/m'))
+    def post(self, request):
+        try:
+            serializer = DonationRequestSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                # Use service to create donation request with notifications
+                donation_request = DonationRequestService.create_donation_request_with_notification(
+                    requester=request.user,
+                    donor=serializer.validated_data['donor'],
+                    blood_group=serializer.validated_data['blood_group'],
+                    urgency_level=serializer.validated_data.get('urgency_level', 'medium'),
+                    notes=serializer.validated_data.get('notes', '')
+                )
+                
+                return Response(
+                    {
+                        "success": True,
+                        "message": "Donation request created and notification sent",
+                        "donation_request_id": donation_request.id
+                    },
+                    status=status.HTTP_201_CREATED
+                )
+            return Response(
+                {"error": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error creating donation request: {str(e)}")
+            return Response(
+                {"error": "An error occurred while creating donation request"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class DonationRequestListView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='30/m'))
+    def get(self, request):
+        try:
+            user = request.user
+            # Get requests made by user or received by user
+            requests_made = DonationRequest.objects.filter(requester=user)
+            requests_received = DonationRequest.objects.filter(donor=user)
+            
+            made_serializer = DonationRequestSerializer(requests_made, many=True)
+            received_serializer = DonationRequestSerializer(requests_received, many=True)
+            
+            return Response(
+                {
+                    "success": True,
+                    "requests_made": made_serializer.data,
+                    "requests_received": received_serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            logger.error(f"Error fetching donation requests: {str(e)}")
+            return Response(
+                {"error": "An error occurred while fetching donation requests"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class DonationRequestResponseView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='20/m'))
+    def post(self, request, request_id):
+        try:
+            donation_request = DonationRequest.objects.get(id=request_id)
+            user = request.user
+            
+            # Check if user is authorized to respond
+            if user != donation_request.requester and user != donation_request.donor:
+                return Response(
+                    {"error": "You are not authorized to respond to this request"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            serializer = DonationRequestResponseSerializer(data=request.data)
+            if serializer.is_valid():
+                response = serializer.validated_data['response']
+                notes = serializer.validated_data.get('notes', '')
+                
+                # Update the appropriate response field
+                if user == donation_request.requester:
+                    donation_request.user_response = response
+                elif user == donation_request.donor:
+                    donation_request.donor_response = response
+                
+                # Update status based on responses
+                donation_request.update_status()
+                
+                # Send notification to the other party
+                DonationRequestService.send_response_notification(
+                    donation_request=donation_request,
+                    responder=user,
+                    response=response,
+                    notes=notes
+                )
+                
+                return Response(
+                    {
+                        "success": True,
+                        "message": "Response recorded and notification sent",
+                        "status": donation_request.status
+                    },
+                    status=status.HTTP_200_OK
+                )
+            return Response(
+                {"error": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except DonationRequest.DoesNotExist:
+            return Response(
+                {"error": "Donation request not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error responding to donation request: {str(e)}")
+            return Response(
+                {"error": "An error occurred while processing response"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class CallLogCreateView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='20/m'))
+    def post(self, request):
+        try:
+            serializer = CallLogSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                # Use service to log call with potential follow-up notifications
+                call_log = CallLogService.log_call_with_outcome(
+                    caller=request.user,
+                    recipient=serializer.validated_data['recipient'],
+                    donation_request=serializer.validated_data.get('donation_request'),
+                    duration=serializer.validated_data.get('duration', 0),
+                    outcome=serializer.validated_data.get('outcome', 'completed'),
+                    notes=serializer.validated_data.get('notes', '')
+                )
+                return Response(
+                    {
+                        "success": True,
+                        "message": "Call logged successfully",
+                        "call_log_id": call_log.id
+                    },
+                    status=status.HTTP_201_CREATED
+                )
+            return Response(
+                {"error": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error creating call log: {str(e)}")
+            return Response(
+                {"error": "An error occurred while creating call log"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class MessageListView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='30/m'))
+    def get(self, request):
+        try:
+            user = request.user
+            messages = Message.objects.filter(recipient=user).order_by('-created_at')
+            serializer = MessageSerializer(messages, many=True)
+            
+            return Response(
+                {
+                    "success": True,
+                    "messages": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            logger.error(f"Error fetching messages: {str(e)}")
+            return Response(
+                {"error": "An error occurred while fetching messages"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class MessageMarkReadView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='30/m'))
+    def post(self, request, message_id):
+        try:
+            message = Message.objects.get(id=message_id, recipient=request.user)
+            message.mark_as_read()
+            
+            return Response(
+                {
+                    "success": True,
+                    "message": "Message marked as read"
+                },
+                status=status.HTTP_200_OK
+            )
+        except Message.DoesNotExist:
+            return Response(
+                {"error": "Message not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error marking message as read: {str(e)}")
+            return Response(
+                {"error": "An error occurred while updating message"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
