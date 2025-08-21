@@ -35,7 +35,13 @@ export default function DonorListScreen() {
       });
       console.log('API Response:', response.data);
       
-      setDonors(response.data.donors || []);
+      if (response && response.data) {
+        setDonors(response.data.donors || []);
+      } else {
+        console.error('Invalid response structure:', response);
+        setDonors([]);
+        Alert.alert('Error', 'Invalid response from server');
+      }
     } catch (error) {
       console.error('Error fetching donors:', error);
       Alert.alert('Error', 'Failed to fetch donor profiles. Please try again.');

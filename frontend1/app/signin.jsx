@@ -16,6 +16,7 @@ export default function Login() {
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
 
   // Validation schema
   const validationSchema = Yup.object().shape({
@@ -49,8 +50,9 @@ export default function Login() {
       await validationSchema.validate(formData, { abortEarly: false });
       setErrors({});
 
+      const endpoint = isAdminLogin ? "/donation/admin-login/" : "/donation/login/";
       const response = await api.post(
-        "/donation/login/",
+        endpoint,
         {
           email: formData.email,
           password: formData.password,
@@ -66,10 +68,13 @@ export default function Login() {
         if (refresh_token) {
           await AsyncStorage.setItem("refreshToken", refresh_token);
         }
-        await AsyncStorage.setItem("user", JSON.stringify(user));
+        await AsyncStorage.setItem("userInfo", JSON.stringify(user));
 
-        Alert.alert("Success", "Login successful!");
-        router.replace("/home"); // go to home/dashboard
+        const successMessage = isAdminLogin ? "Admin login successful!" : "Login successful!";
+        const redirectPath = isAdminLogin ? "/admindashboard" : "/home";
+        
+        Alert.alert("Success", successMessage);
+        router.replace(redirectPath);
       }
     } catch (err) {
       if (err.response) {
@@ -113,7 +118,18 @@ export default function Login() {
     >
       <ScrollView contentContainerStyle={styles.container}>
         <View>
-          <Text style={styles.heading}>Log In</Text>
+          <Text style={styles.heading}>{isAdminLogin ? "Admin Login" : "Log In"}</Text>
+        
+        <View style={styles.toggleContainer}>
+          <Text style={styles.toggleLabel}>User Login</Text>
+          <TouchableOpacity
+            style={[styles.toggle, isAdminLogin && styles.toggleActive]}
+            onPress={() => setIsAdminLogin(!isAdminLogin)}
+          >
+            <View style={[styles.toggleButton, isAdminLogin && styles.toggleButtonActive]} />
+          </TouchableOpacity>
+          <Text style={styles.toggleLabel}>Admin Login</Text>
+        </View>
 
         <Text style={styles.label}>Email Address</Text>
         <TextInput
@@ -155,7 +171,7 @@ export default function Login() {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? "Processing..." : "Log In"}</Text>
+          <Text style={styles.buttonText}>{loading ? "Processing..." : (isAdminLogin ? "Admin Login" : "Log In")}</Text>
         </TouchableOpacity>
 
         <Text style={styles.text}>
@@ -250,5 +266,38 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textDecorationLine: "underline",
     fontSize: 14,
+  },
+  toggleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+    gap: 10,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    color: "#333",
+    fontWeight: "500",
+  },
+  toggle: {
+    width: 50,
+    height: 25,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 15,
+    padding: 2,
+    justifyContent: "center",
+  },
+  toggleActive: {
+    backgroundColor: "#d40000",
+  },
+  toggleButton: {
+    width: 21,
+    height: 21,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    alignSelf: "flex-start",
+  },
+  toggleButtonActive: {
+    alignSelf: "flex-end",
   },
 });

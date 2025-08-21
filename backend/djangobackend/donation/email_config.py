@@ -53,6 +53,81 @@ SMS_TEMPLATES = {
     )
 }
 
+# Email Templates
+EMAIL_TEMPLATES = {
+    'monthly_unblock': {
+        'subject': 'Account Unblocked - Welcome Back to Blood Donation App',
+        'message': '''
+Dear {user_name},
+
+Great news! Your account has been automatically unblocked for {month_year}.
+
+Your previous monthly donation goal was completed in the last month, and now you can continue helping save lives with a fresh start.
+
+📊 Monthly Status Reset:
+• Completed calls count: Reset to 0
+• Monthly goal status: Reset
+• Account status: Active
+
+You can now:
+✓ Receive new donation requests
+✓ Make calls to donors/requesters
+✓ Continue your life-saving contributions
+
+Thank you for being a valuable member of our blood donation community. Your dedication to helping others is truly appreciated.
+
+Best regards,
+Blood Donation App Team
+
+Note: This is an automated message. If you have any questions, please contact our support team.
+'''
+    },
+    'donation_request': {
+        'subject': 'Blood Donation Request - {blood_group} Needed',
+        'message': '''
+Dear {recipient_name},
+
+You have received a new blood donation request:
+
+🩸 Blood Group Needed: {blood_group}
+👤 Requester: {requester_name}
+⚡ Urgency Level: {urgency}
+📍 Location: {location}
+
+Please open the Blood Donation App to respond to this request.
+
+Your quick response could save a life!
+
+Best regards,
+Blood Donation App Team
+'''
+    },
+    'call_confirmation': {
+        'subject': 'Call Completed - Thank You for Your Contribution',
+        'message': '''
+Dear {user_name},
+
+Thank you for completing a donation-related call!
+
+📞 Call Details:
+• Date: {call_date}
+• Duration: {duration}
+• Related to: {blood_group} donation request
+
+📊 Your Monthly Progress:
+• Completed calls this month: {completed_calls}/3
+• Status: {status}
+
+{additional_message}
+
+Thank you for your continued support in saving lives!
+
+Best regards,
+Blood Donation App Team
+'''
+    }
+}
+
 def get_sms_template(template_name, **kwargs):
     """
     Get formatted SMS template with provided parameters.
@@ -193,6 +268,34 @@ EMAIL_HOST_PASSWORD = 'your_app_password'
 DEFAULT_FROM_EMAIL = 'Blood Donation App <your_email@gmail.com>'
 """
 
+def get_email_template(template_name, **kwargs):
+    """
+    Get formatted email template with provided parameters.
+    
+    Args:
+        template_name (str): Name of the template
+        **kwargs: Template parameters
+    
+    Returns:
+        tuple: (subject, message) or (None, None) if template not found
+    """
+    if template_name not in EMAIL_TEMPLATES:
+        logger.error(f"Email template '{template_name}' not found")
+        return None, None
+    
+    try:
+        template = EMAIL_TEMPLATES[template_name]
+        subject = template['subject'].format(**kwargs)
+        message = template['message'].format(**kwargs)
+        return subject, message
+    except KeyError as e:
+        logger.error(f"Missing parameter {e} for email template '{template_name}'")
+        return None, None
+    except Exception as e:
+        logger.error(f"Error formatting email template '{template_name}': {str(e)}")
+        return None, None
+
+
 class EmailService:
     """
     Email service class for handling email notifications.
@@ -203,6 +306,14 @@ class EmailService:
     def send_email(email, subject, message):
         """
         Send email notification.
+        
+        Args:
+            email (str): Recipient email address
+            subject (str): Email subject
+            message (str): Email message content
+        
+        Returns:
+            tuple: (success, message)
         """
         try:
             from django.core.mail import send_mail
@@ -220,4 +331,49 @@ class EmailService:
             
         except Exception as e:
             logger.error(f"Failed to send email to {email}: {str(e)}")
+            return False, str(e)
+    
+    @staticmethod
+    def send_template_email(email, template_name, **kwargs):
+        """
+        Send email using a predefined template.
+        
+        Args:
+            email (str): Recipient email address
+            template_name (str): Name of the email template
+            **kwargs: Template parameters
+        
+        Returns:
+            tuple: (success, message)
+        """
+        subject, message = get_email_template(template_name, **kwargs)
+        
+        if subject is None or message is None:
+            return False, f"Failed to get email template '{template_name}'"
+        
+        return EmailService.send_email(email, subject, message)
+    
+    @staticmethod
+    def send_monthly_unblock_notification(user, month_year):
+        """
+        Send monthly unblock notification to user.
+        
+        Args:
+            user: User object
+            month_year (str): Month and year (e.g., "January 2025")
+        
+        Returns:
+            tuple: (success, message)
+        """
+        try:
+            user_name = getattr(user, 'name', user.email)
+            
+            return EmailService.send_template_email(
+                email=user.email,
+                template_name='monthly_unblock',
+                user_name=user_name,
+                month_year=month_year
+            )
+        except Exception as e:
+            logger.error(f"Failed to send monthly unblock notification to {user.email}: {str(e)}")
             return False, str(e)

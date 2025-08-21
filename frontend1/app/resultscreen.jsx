@@ -16,12 +16,22 @@ export default function ResultScreen() {
   const fetchDonors = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/donors/', {
-        params: { city, blood_group: bloodGroup },
+      const response = await api.get('/donation/donors/search/', {
+        params: { 
+          city: city, 
+          blood_group: bloodGroup 
+        },
       });
-      setDonors(response.data);
+      
+      if (response && response.data) {
+        setDonors(response.data.donors || []);
+      } else {
+        console.error('Invalid response structure:', response);
+        setDonors([]);
+      }
     } catch (error) {
       console.error("Error fetching donors:", error);
+      setDonors([]);
     } finally {
       setLoading(false);
     }

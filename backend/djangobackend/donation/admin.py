@@ -1,10 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Profile
+from django.utils.html import format_html
+from django.db.models import Q
+from .models import User, Profile, Admin, MonthlyDonationTracker, CallLog, DonationRequest, Message
 
 class CustomUserAdmin(UserAdmin):
-    list_display = ('email', 'name', 'is_staff', 'date_joined', 'is_verified')  # Use date_joined instead of created_at
+    list_display = ('email', 'name', 'is_staff', 'user_status', 'date_joined', 'is_verified')  # Use date_joined instead of created_at
     list_filter = ('is_staff', 'is_superuser', 'is_active', 'is_verified')
+    actions = ['block_user_account', 'unblock_user_account', 'delete_user_account']
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal Info', {'fields': ('name',)}),
@@ -20,12 +23,83 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ('email', 'name')
     ordering = ('-date_joined',)
     filter_horizontal = ()
+    
+    def user_status(self, obj):
+        if obj.is_staff:
+            return format_html('<span style="color: blue; font-weight: bold;">Staff</span>')
+        elif obj.is_active:
+            return format_html('<span style="color: green; font-weight: bold;">Active</span>')
+        else:
+            return format_html('<span style="color: red; font-weight: bold;">Blocked</span>')
+    user_status.short_description = 'Status'
+    
+    def block_user_account(self, request, queryset):
+        """Admin action to block user accounts"""
+        count = 0
+        for user in queryset:
+            if user.is_active and not user.is_staff:
+                user.is_active = False
+                user.save()
+                count += 1
+        
+        self.message_user(request, f'Successfully blocked {count} user accounts.')
+    block_user_account.short_description = "Block selected user accounts (non-staff only)"
+    
+    def unblock_user_account(self, request, queryset):
+        """Admin action to unblock user accounts"""
+        from donation.email_config import EmailService
+        from django.utils import timezone
+        
+        count = 0
+        email_count = 0
+        current_month = timezone.now().strftime('%B %Y')
+        
+        for user in queryset:
+            if not user.is_active and not user.is_staff:
+                user.is_active = True
+                user.save()
+                count += 1
+                
+                # Send unblock notification email
+                try:
+                    success, message = EmailService.send_monthly_unblock_notification(user, current_month)
+                    if success:
+                        email_count += 1
+                except Exception as e:
+                    pass  # Continue even if email fails
+        
+        message = f'Successfully unblocked {count} user accounts.'
+        if email_count > 0:
+            message += f' Sent {email_count} notification emails.'
+        self.message_user(request, message)
+    unblock_user_account.short_description = "Unblock selected user accounts (non-staff only)"
+    
+    def delete_user_account(self, request, queryset):
+        """Admin action to delete user accounts"""
+        from django.contrib import messages
+        
+        count = 0
+        for user in queryset:
+            if not user.is_staff:  # Prevent deletion of staff accounts
+                try:
+                    user_email = user.email
+                    user.delete()
+                    count += 1
+                except Exception as e:
+                    messages.error(request, f'Failed to delete user {user.email}: {str(e)}')
+            else:
+                messages.warning(request, f'Cannot delete staff user: {user.email}')
+        
+        if count > 0:
+            self.message_user(request, f'Successfully deleted {count} user accounts.')
+    delete_user_account.short_description = "Delete selected user accounts (non-staff only)"
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'full_name', 'contact_number', 'city', 'blood_group', 'role', 'created_at')
-    list_filter = ('gender', 'blood_group', 'role', 'city', 'created_at')
+    list_display = ('user', 'full_name', 'contact_number', 'city', 'blood_group', 'role', 'user_status', 'created_at')
+    list_filter = ('gender', 'blood_group', 'role', 'city', 'created_at', 'user__is_active')
     search_fields = ('user__email', 'user__name', 'first_name', 'last_name', 'contact_number')
     ordering = ('-created_at',)
+    actions = ['block_user_account', 'unblock_user_account', 'delete_user_and_profile']
     fieldsets = (
         ('User Information', {'fields': ('user',)}),
         ('Personal Details', {'fields': ('first_name', 'last_name', 'contact_number', 'gender')}),
@@ -39,6 +113,271 @@ class ProfileAdmin(admin.ModelAdmin):
     def full_name(self, obj):
         return obj.full_name
     full_name.short_description = 'Full Name'
+    
+    def user_status(self, obj):
+        if obj.user.is_active:
+            return format_html('<span style="color: green; font-weight: bold;">Active</span>')
+        else:
+            return format_html('<span style="color: red; font-weight: bold;">Blocked</span>')
+    user_status.short_description = 'Account Status'
+    
+    def block_user_account(self, request, queryset):
+        """Admin action to block user accounts"""
+        count = 0
+        for profile in queryset:
+            user = profile.user
+            if user.is_active:
+                user.is_active = False
+                user.save()
+                count += 1
+        
+        self.message_user(request, f'Successfully blocked {count} user accounts.')
+    block_user_account.short_description = "Block selected user accounts"
+    
+    def unblock_user_account(self, request, queryset):
+        """Admin action to unblock user accounts"""
+        from donation.email_config import EmailService
+        from django.utils import timezone
+        
+        count = 0
+        email_count = 0
+        current_month = timezone.now().strftime('%B %Y')
+        
+        for profile in queryset:
+            user = profile.user
+            if not user.is_active:
+                user.is_active = True
+                user.save()
+                count += 1
+                
+                # Send unblock notification email
+                try:
+                    success, message = EmailService.send_monthly_unblock_notification(user, current_month)
+                    if success:
+                        email_count += 1
+                except Exception as e:
+                    pass  # Continue even if email fails
+        
+        message = f'Successfully unblocked {count} user accounts.'
+        if email_count > 0:
+            message += f' Sent {email_count} notification emails.'
+        self.message_user(request, message)
+    unblock_user_account.short_description = "Unblock selected user accounts"
+    
+    def delete_user_and_profile(self, request, queryset):
+        """Admin action to delete user profiles and accounts"""
+        from django.contrib import messages
+        
+        count = 0
+        for profile in queryset:
+            user = profile.user
+            try:
+                # Delete the user (this will cascade delete the profile)
+                user_email = user.email
+                user.delete()
+                count += 1
+            except Exception as e:
+                messages.error(request, f'Failed to delete user {user.email}: {str(e)}')
+        
+        if count > 0:
+            self.message_user(request, f'Successfully deleted {count} user profiles and accounts.')
+    delete_user_and_profile.short_description = "Delete selected user profiles"
 
+class AdminAdmin(admin.ModelAdmin):
+    list_display = ('email', 'name', 'is_active', 'is_superuser', 'date_joined')
+    list_filter = ('is_active', 'is_superuser', 'date_joined')
+    search_fields = ('email', 'name')
+    ordering = ('-date_joined',)
+    fieldsets = (
+        ('Admin Information', {'fields': ('email', 'name', 'password')}),
+        ('Permissions', {'fields': ('is_active', 'is_superuser')}),
+        ('Timestamps', {'fields': ('date_joined', 'last_login'), 'classes': ('collapse',)}),
+    )
+    readonly_fields = ('date_joined', 'last_login')
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # If creating a new admin
+            obj.set_password(obj.password)  # Hash the password
+        super().save_model(request, obj, form, change)
+
+class MonthlyDonationTrackerAdmin(admin.ModelAdmin):
+    list_display = ('user', 'user_email', 'month', 'completed_calls_count', 'monthly_goal_completed', 'goal_completed_at', 'is_blocked')
+    list_filter = ('monthly_goal_completed', 'month', 'completed_calls_count')
+    search_fields = ('user__email', 'user__name')
+    ordering = ('-month', '-completed_calls_count')
+    readonly_fields = ('created_at', 'updated_at')
+    
+    def user_email(self, obj):
+        return obj.user.email
+    user_email.short_description = 'User Email'
+    
+    def is_blocked(self, obj):
+        if obj.monthly_goal_completed and obj.completed_calls_count >= 3:
+            return format_html('<span style="color: red; font-weight: bold;">BLOCKED</span>')
+        return format_html('<span style="color: green;">Active</span>')
+    is_blocked.short_description = 'Status'
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('user')
+
+class BlockedProfilesAdmin(admin.ModelAdmin):
+    """Custom admin view to show only blocked profiles (users who completed 3 calls in one month)"""
+    list_display = ('user', 'user_email', 'month', 'completed_calls_count', 'goal_completed_at', 'user_status', 'is_current_month')
+    list_filter = ('month', 'goal_completed_at', 'monthly_goal_completed')
+    search_fields = ('user__email', 'user__name')
+    ordering = ('-goal_completed_at',)
+    actions = ['reset_monthly_count', 'block_user_account', 'unblock_user_account', 'delete_user_profile']
+    
+    def user_email(self, obj):
+        return obj.user.email
+    user_email.short_description = 'User Email'
+    
+    def user_status(self, obj):
+        from django.utils import timezone
+        current_month = timezone.now().date().replace(day=1)
+        if obj.month == current_month and obj.monthly_goal_completed:
+            return format_html('<span style="color: red; font-weight: bold;">BLOCKED (Current Month)</span>')
+        elif obj.monthly_goal_completed:
+            return format_html('<span style="color: orange; font-weight: bold;">BLOCKED (Past Month)</span>')
+        return format_html('<span style="color: green;">Active</span>')
+    user_status.short_description = 'Status'
+    
+    def is_current_month(self, obj):
+        from django.utils import timezone
+        current_month = timezone.now().date().replace(day=1)
+        if obj.month == current_month:
+            return format_html('<span style="color: red; font-weight: bold;">YES</span>')
+        return format_html('<span style="color: gray;">NO</span>')
+    is_current_month.short_description = 'Current Month?'
+    
+    def get_queryset(self, request):
+        """Show users who completed 3 calls in any month (current and past blocked profiles)"""
+        qs = super().get_queryset(request)
+        return qs.filter(
+            monthly_goal_completed=True,
+            completed_calls_count__gte=3
+        ).select_related('user')
+    
+    def reset_monthly_count(self, request, queryset):
+        """Admin action to reset monthly count for selected users"""
+        from django.utils import timezone
+        current_month = timezone.now().date().replace(day=1)
+        
+        count = 0
+        for tracker in queryset:
+            if tracker.month == current_month:
+                tracker.reset_for_new_month()
+                count += 1
+        
+        self.message_user(request, f'Successfully reset {count} monthly trackers for current month.')
+    reset_monthly_count.short_description = "Reset monthly count for current month"
+    
+    def has_add_permission(self, request):
+        """Disable adding new records through this admin"""
+        return False
+    
+    def block_user_account(self, request, queryset):
+        """Admin action to block user accounts"""
+        count = 0
+        for tracker in queryset:
+            user = tracker.user
+            if user.is_active:
+                user.is_active = False
+                user.save()
+                count += 1
+        
+        self.message_user(request, f'Successfully blocked {count} user accounts.')
+    block_user_account.short_description = "Block selected user accounts"
+    
+    def unblock_user_account(self, request, queryset):
+        """Admin action to unblock user accounts"""
+        from donation.email_config import EmailService
+        from django.utils import timezone
+        
+        count = 0
+        email_count = 0
+        current_month = timezone.now().strftime('%B %Y')
+        
+        for tracker in queryset:
+            user = tracker.user
+            if not user.is_active:
+                user.is_active = True
+                user.save()
+                count += 1
+                
+                # Send unblock notification email
+                try:
+                    success, message = EmailService.send_monthly_unblock_notification(user, current_month)
+                    if success:
+                        email_count += 1
+                except Exception as e:
+                    pass  # Continue even if email fails
+        
+        message = f'Successfully unblocked {count} user accounts.'
+        if email_count > 0:
+            message += f' Sent {email_count} notification emails.'
+        self.message_user(request, message)
+    unblock_user_account.short_description = "Unblock selected user accounts"
+    
+    def delete_user_profile(self, request, queryset):
+        """Admin action to delete user profiles and accounts"""
+        from django.contrib import messages
+        
+        count = 0
+        for tracker in queryset:
+            user = tracker.user
+            try:
+                # Delete the user (this will cascade delete the profile and tracker)
+                user_email = user.email
+                user.delete()
+                count += 1
+            except Exception as e:
+                messages.error(request, f'Failed to delete user {user.email}: {str(e)}')
+        
+        if count > 0:
+            self.message_user(request, f'Successfully deleted {count} user profiles and accounts.')
+    delete_user_profile.short_description = "Delete selected user profiles"
+    
+    def has_delete_permission(self, request, obj=None):
+        """Disable deleting records through this admin"""
+        return False
+
+class CallLogAdmin(admin.ModelAdmin):
+    list_display = ('donation_request', 'caller', 'receiver', 'call_status', 'both_confirmed', 'started_at', 'duration_seconds')
+    list_filter = ('call_status', 'both_confirmed', 'started_at')
+    search_fields = ('caller__email', 'receiver__email', 'donation_request__id')
+    ordering = ('-started_at',)
+    readonly_fields = ('started_at', 'confirmed_at')
+
+class DonationRequestAdmin(admin.ModelAdmin):
+    list_display = ('requester', 'donor', 'blood_group', 'status', 'urgency_level', 'created_at')
+    list_filter = ('status', 'blood_group', 'urgency_level', 'created_at')
+    search_fields = ('requester__email', 'donor__email')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at')
+
+class MessageAdmin(admin.ModelAdmin):
+    list_display = ('sender', 'recipient', 'subject', 'message_type', 'delivery_status', 'created_at')
+    list_filter = ('message_type', 'delivery_status', 'is_sms', 'email_sent', 'sms_sent')
+    search_fields = ('sender__email', 'recipient__email', 'subject')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'sent_at', 'delivered_at', 'read_at')
+
+# Register models with admin
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Profile, ProfileAdmin)
+admin.site.register(Admin, AdminAdmin)
+admin.site.register(MonthlyDonationTracker, MonthlyDonationTrackerAdmin)
+admin.site.register(CallLog, CallLogAdmin)
+admin.site.register(DonationRequest, DonationRequestAdmin)
+admin.site.register(Message, MessageAdmin)
+
+# Create a proxy model for blocked profiles to have a separate admin interface
+class BlockedProfiles(MonthlyDonationTracker):
+    class Meta:
+        proxy = True
+        verbose_name = 'Blocked Profile'
+        verbose_name_plural = 'Blocked Profiles'
+
+admin.site.register(BlockedProfiles, BlockedProfilesAdmin)

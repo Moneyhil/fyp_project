@@ -18,8 +18,9 @@ import logging
 from django.contrib.auth.decorators import user_passes_test
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
+# Removed csrf_exempt import - using JWT-only authentication
 
-from .models import User, Profile, DonationRequest, CallLog, Message
+from .models import User, Profile, DonationRequest, CallLog, Message, Admin
 from .serializers import (
     UserSerializer,
     SendOTPSerializer,
@@ -37,30 +38,126 @@ from .services import DonationRequestService, CallLogService, NotificationServic
 logger = logging.getLogger(__name__)
 
 # =====================================================
+# 🔹 ADMIN DECORATOR
+# =====================================================
+
+def admin_required(view_func):
+    """Decorator to ensure only admin users can access the view"""
+    def _wrapped_view(request, *args, **kwargs):
+        # Check for JWT token in Authorization header
+        auth_header = request.META.get('HTTP_AUTHORIZATION')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return JsonResponse({"error": "Admin access required"}, status=403)
+        
+        try:
+            from rest_framework_simplejwt.tokens import UntypedToken
+            from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+            import jwt
+            from django.conf import settings
+            
+            # Extract token
+            token = auth_header.split(' ')[1]
+            
+            # Validate token
+            UntypedToken(token)
+            
+            # Decode token to get user info
+            decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+            user_id = decoded_token.get('user_id')
+            
+            # Check if this is an admin user (user_id > 10000 indicates admin)
+            if user_id and user_id > 10000:
+                admin_id = user_id - 10000
+                try:
+                    admin = Admin.objects.get(id=admin_id, is_active=True)
+                    # Store admin info in request for use in view
+                    request.admin = admin
+                    return view_func(request, *args, **kwargs)
+                except Admin.DoesNotExist:
+                    return JsonResponse({"error": "Admin access required"}, status=403)
+            else:
+                return JsonResponse({"error": "Admin access required"}, status=403)
+                
+        except (InvalidToken, TokenError, jwt.DecodeError, jwt.ExpiredSignatureError):
+            return JsonResponse({"error": "Invalid or expired token"}, status=401)
+        except Exception as e:
+            return JsonResponse({"error": "Admin access required"}, status=403)
+        
+    return _wrapped_view
+
+# =====================================================
 # 🔹 ADMIN PANEL VIEWS (Improved)
 # =====================================================
 
 @method_decorator(ratelimit(key='ip', rate='5/m'), name='dispatch')
 class AdminLoginView(View):
     def post(self, request):
-        email = request.POST.get("email", "").lower().strip()
-        password = request.POST.get("password", "")
+        # Handle both JSON and form data
+        if request.content_type == 'application/json':
+            import json
+            try:
+                data = json.loads(request.body)
+                email = data.get("email", "").lower().strip()
+                password = data.get("password", "")
+            except json.JSONDecodeError:
+                return JsonResponse({"error": "Invalid JSON"}, status=400)
+        else:
+            email = request.POST.get("email", "").lower().strip()
+            password = request.POST.get("password", "")
         
-        user = authenticate(request, email=email, password=password)
-        
-        if user and (user.is_superuser or user.is_staff):
-            login(request, user)
-            return JsonResponse({
-                "message": "Admin logged in",
-                "is_superuser": user.is_superuser
-            })
-        return JsonResponse({"error": "Invalid credentials"}, status=401)
+        try:
+            admin = Admin.objects.get(email=email, is_active=True)
+            if admin.check_password(password):
+                # Update last login
+                from django.utils import timezone
+                admin.last_login = timezone.now()
+                admin.save()
+                
+                # Create a temporary user object for JWT token generation
+                # We'll use the admin's email as username and set is_staff=True
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                
+                # Create a temporary user-like object for JWT
+                temp_user = User(
+                    id=admin.id + 10000,  # Offset to avoid conflicts
+                    email=admin.email,
+                    is_staff=True,
+                    is_active=True
+                )
+                
+                # Generate JWT tokens
+                refresh = RefreshToken.for_user(temp_user)
+                access_token = str(refresh.access_token)
+                
+                return JsonResponse({
+                    "message": "Admin logged in successfully",
+                    "token": access_token,
+                    "access_token": access_token,
+                    "refresh_token": str(refresh),
+                    "user": {
+                        "id": admin.id,
+                        "name": admin.name,
+                        "email": admin.email,
+                        "is_staff": True,
+                        "is_superuser": admin.is_superuser,
+                        "is_active": admin.is_active
+                    }
+                })
+            else:
+                return JsonResponse({"error": "Invalid credentials"}, status=401)
+        except Admin.DoesNotExist:
+            return JsonResponse({"error": "Invalid credentials"}, status=401)
     
 class AdminLogoutView(View):
     @method_decorator(ratelimit(key='ip', rate='5/m'))
     def post(self, request):
-        if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
-            logout(request)
+        if request.session.get('admin_id'):
+            # Clear admin session data
+            request.session.pop('admin_id', None)
+            request.session.pop('admin_email', None)
+            request.session.pop('admin_name', None)
+            request.session.pop('is_superuser', None)
             return JsonResponse({"message": "Admin logged out successfully"})
         return JsonResponse({"error": "Not authorized"}, status=401)
 
@@ -70,7 +167,7 @@ class AdminForgotPasswordView(View):
     def post(self, request):
         email = request.POST.get("email", "").lower().strip()
         try:
-            user = User.objects.get(email=email, is_staff=True)
+            admin = Admin.objects.get(email=email, is_active=True)
             otp = str(secrets.randbelow(900000) + 100000)  # Secure 6-digit OTP
             cache.set(f"admin_pw_reset_{email}", otp, timeout=600)  # 10 min expiry
             
@@ -82,8 +179,54 @@ class AdminForgotPasswordView(View):
                 fail_silently=False
             )
             return JsonResponse({"message": "OTP sent to email"})
-        except User.DoesNotExist:
+        except Admin.DoesNotExist:
             return JsonResponse({"error": "Admin account not found"}, status=404)
+
+@method_decorator(ratelimit(key='ip', rate='3/m'), name='dispatch')
+class AdminCreateView(View):
+    @method_decorator(admin_required)
+    def post(self, request):
+        # Admin authentication is handled by the admin_required decorator
+        
+        name = request.POST.get("name", "").strip()
+        email = request.POST.get("email", "").lower().strip()
+        password = request.POST.get("password", "")
+        
+        # Validation
+        if not name or not email or not password:
+            return JsonResponse({"error": "Name, email, and password are required"}, status=400)
+        
+        if len(password) < 8:
+            return JsonResponse({"error": "Password must be at least 8 characters long"}, status=400)
+        
+        # Check if admin with this email already exists
+        if Admin.objects.filter(email=email).exists():
+            return JsonResponse({"error": "Admin with this email already exists"}, status=400)
+        
+        try:
+            # Create new admin
+            admin = Admin(
+                name=name,
+                email=email,
+                is_active=True,
+                is_superuser=False  # New admins are not superusers by default
+            )
+            admin.set_password(password)
+            admin.save()
+            
+            return JsonResponse({
+                "message": "Admin created successfully",
+                "admin": {
+                    "id": admin.id,
+                    "name": admin.name,
+                    "email": admin.email,
+                    "is_active": admin.is_active,
+                    "is_superuser": admin.is_superuser,
+                    "date_joined": admin.date_joined.isoformat()
+                }
+            }, status=201)
+        except Exception as e:
+            return JsonResponse({"error": f"Failed to create admin: {str(e)}"}, status=500)
 
 @method_decorator(ratelimit(key='ip', rate='5/m'), name='dispatch')
 class AdminResetPasswordView(View):
@@ -96,21 +239,15 @@ class AdminResetPasswordView(View):
         
         if cached_otp and cached_otp == otp:
             try:
-                user = User.objects.get(email=email, is_staff=True)
-                user.set_password(new_password)
-                user.save()
+                admin = Admin.objects.get(email=email, is_active=True)
+                admin.set_password(new_password)
+                admin.save()
                 cache.delete(f"admin_pw_reset_{email}")
-                return JsonResponse({"message": "Password reset successful"})
-            except User.DoesNotExist:
+                return JsonResponse({"message": "Password reset successfully"})
+            except Admin.DoesNotExist:
                 return JsonResponse({"error": "Admin account not found"}, status=404)
         return JsonResponse({"error": "Invalid or expired OTP"}, status=400)
 
-# Admin permission check decorator
-def admin_required(view_func):
-    return user_passes_test(
-        lambda u: u.is_active and u.is_staff,
-        login_url='/admin/login/'
-    )(view_func)
 class UserListView(View):
     @method_decorator([admin_required, ratelimit(key='ip', rate='60/m')])
     def get(self, request):
@@ -778,7 +915,192 @@ class MessageMarkReadView(APIView):
         except Message.DoesNotExist:
             return Response(
                 {"error": "Message not found"},
-                status=status.HTTP_404_NOT_FOUND
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+
+class CallInitiateView(APIView):
+    permission_classes = [AllowAny]
+
+    @method_decorator(ratelimit(key='ip', rate='10/m'))
+    def post(self, request):
+        """Initiate a call and send messages to both parties."""
+        try:
+            donation_request_id = request.data.get('donation_request_id')
+            caller_email = request.data.get('caller_email')
+            receiver_email = request.data.get('receiver_email')
+
+            if not all([donation_request_id, caller_email, receiver_email]):
+                return Response(
+                    {"error": "donation_request_id, caller_email, and receiver_email are required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the donation request
+            try:
+                donation_request = DonationRequest.objects.get(id=donation_request_id)
+            except DonationRequest.DoesNotExist:
+                return Response(
+                    {"error": "Donation request not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Get caller and receiver users
+            try:
+                caller = User.objects.get(email=caller_email)
+                receiver = User.objects.get(email=receiver_email)
+            except User.DoesNotExist:
+                return Response(
+                    {"error": "Caller or receiver not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Initiate call with messages
+            call_log = CallLog.initiate_call_with_messages(
+                donation_request=donation_request,
+                caller=caller,
+                receiver=receiver
+            )
+
+            return Response(
+                {
+                    "message": "Call initiated successfully and messages sent to both parties",
+                    "call_id": call_log.id,
+                    "status": call_log.call_status
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as e:
+            logger.error(f"Error initiating call: {str(e)}")
+            return Response(
+                {"error": "Failed to initiate call"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class CallConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    @method_decorator(ratelimit(key='ip', rate='20/m'))
+    def post(self, request, call_id):
+        """Confirm call completion by caller or receiver."""
+        try:
+            user_email = request.data.get('user_email')
+            
+            if not user_email:
+                return Response(
+                    {"error": "user_email is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the call log
+            try:
+                call_log = CallLog.objects.get(id=call_id)
+            except CallLog.DoesNotExist:
+                return Response(
+                    {"error": "Call log not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Get the user
+            try:
+                user = User.objects.get(email=user_email)
+            except User.DoesNotExist:
+                return Response(
+                    {"error": "User not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Check if user is caller or receiver
+            if user == call_log.caller:
+                if call_log.caller_confirmed:
+                    return Response(
+                        {"message": "Call already confirmed by caller"},
+                        status=status.HTTP_200_OK,
+                    )
+                call_log.confirm_by_caller()
+                role = "caller"
+            elif user == call_log.receiver:
+                if call_log.receiver_confirmed:
+                    return Response(
+                        {"message": "Call already confirmed by receiver"},
+                        status=status.HTTP_200_OK,
+                    )
+                call_log.confirm_by_receiver()
+                role = "receiver"
+            else:
+                return Response(
+                    {"error": "User is not part of this call"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            response_data = {
+                "message": f"Call confirmed by {role}",
+                "caller_confirmed": call_log.caller_confirmed,
+                "receiver_confirmed": call_log.receiver_confirmed,
+                "both_confirmed": call_log.both_confirmed
+            }
+
+            if call_log.both_confirmed:
+                response_data["message"] = "Call completed! Both parties have confirmed. Count updated."
+                response_data["confirmed_at"] = call_log.confirmed_at
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error confirming call: {str(e)}")
+            return Response(
+                {"error": "Failed to confirm call"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class MonthlyTrackerView(APIView):
+    permission_classes = [AllowAny]
+
+    @method_decorator(ratelimit(key='ip', rate='30/m'))
+    def get(self, request):
+        """Get monthly donation tracker for a user."""
+        try:
+            user_email = request.query_params.get('user_email')
+            
+            if not user_email:
+                return Response(
+                    {"error": "user_email is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the user
+            try:
+                user = User.objects.get(email=user_email)
+            except User.DoesNotExist:
+                return Response(
+                    {"error": "User not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Get or create current month tracker
+            from .models import MonthlyDonationTracker
+            tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(user)
+
+            return Response(
+                {
+                    "user_email": user.email,
+                    "month": tracker.month.strftime('%B %Y'),
+                    "completed_calls_count": tracker.completed_calls_count,
+                    "monthly_goal_completed": tracker.monthly_goal_completed,
+                    "goal_completed_at": tracker.goal_completed_at,
+                    "progress": f"{tracker.completed_calls_count}/3"
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting monthly tracker: {str(e)}")
+            return Response(
+                {"error": "Failed to get monthly tracker"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except Exception as e:
             logger.error(f"Error marking message as read: {str(e)}")

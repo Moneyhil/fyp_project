@@ -2,7 +2,7 @@
 import axios from 'axios';
 
  const api = axios.create({
-  baseURL: 'http://192.168.100.16:8000', // Django server computer IP address
+  baseURL: 'http://172.20.10.5:8000', // Django server computer IP address
   headers: {
     'Content-Type': 'application/json',
   },
@@ -10,7 +10,7 @@ import axios from 'axios';
 
 // Donation Request APIs
 export const createDonationRequest = (data) => {
-  return api.post('/donation/donation-requests/', data);
+  return api.post('/donation/donation-requests/create/', data);
 };
 
 export const getDonationRequests = () => {
@@ -23,7 +23,7 @@ export const respondToDonationRequest = (requestId, data) => {
 
 // Call Log APIs
 export const createCallLog = (data) => {
-  return api.post('/donation/call-logs/', data);
+  return api.post('/donation/call-logs/create/', data);
 };
 
 // Message APIs
@@ -32,7 +32,7 @@ export const getMessages = () => {
 };
 
 export const markMessageAsRead = (messageId) => {
-  return api.post(`/donation/messages/${messageId}/mark-read/`);
+  return api.post(`/donation/messages/${messageId}/read/`);
 };
 
 // Profile APIs

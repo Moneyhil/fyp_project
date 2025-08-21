@@ -5,6 +5,8 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.db.models.functions import Lower
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 import secrets
 import hashlib
 import datetime
@@ -97,9 +99,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.email
 
     def clean(self):
-        """Normalize and validate model before saving."""
         super().clean()
-        self.email = self.__class__.objects.normalize_email(self.email)
+        if self.email:
+            self.email = self.email.lower()
 
     def generate_otp(self, expiry_minutes=10):
         """
@@ -139,6 +141,55 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.otp_secret = None
         self.otp_created_at = None
         self.otp_expires_at = None
+
+
+class Admin(models.Model):
+    """
+    Admin model to store admin accounts separately from regular users.
+    """
+    name = models.CharField(_('Full Name'), max_length=150)
+    email = models.EmailField(_('Email Address'), unique=True)
+    password = models.CharField(_('Password'), max_length=128)
+    
+    # Status flags
+    is_active = models.BooleanField(_('Active'), default=True)
+    is_superuser = models.BooleanField(_('Superuser'), default=False)
+    
+    # Timestamps
+    date_joined = models.DateTimeField(_('Date joined'), auto_now_add=True)
+    last_login = models.DateTimeField(_('Last login'), null=True, blank=True)
+    
+    class Meta:
+        verbose_name = _('Admin')
+        verbose_name_plural = _('Admins')
+        constraints = [
+            models.UniqueConstraint(
+                Lower('email'),
+                name='unique_admin_email_ci'
+            )
+        ]
+        indexes = [
+            models.Index(Lower('email'), name='idx_admin_email_ci'),
+        ]
+
+    def __str__(self):
+        return self.email
+
+    def clean(self):
+        """Normalize and validate model before saving."""
+        super().clean()
+        if self.email:
+            self.email = self.email.lower()
+    
+    def set_password(self, raw_password):
+        """Hash and set the password."""
+        from django.contrib.auth.hashers import make_password
+        self.password = make_password(raw_password)
+    
+    def check_password(self, raw_password):
+        """Check if the provided password matches the stored hash."""
+        from django.contrib.auth.hashers import check_password
+        return check_password(raw_password, self.password)
 
 
 class Profile(models.Model):
@@ -458,7 +509,28 @@ class CallLog(models.Model):
         null=True,
         help_text='Notes about the call'
     )
-    
+    caller_confirmed = models.BooleanField(
+        _('Caller Confirmed'),
+        default=False,
+        help_text='Whether the caller confirmed the call completion'
+    )
+    receiver_confirmed = models.BooleanField(
+        _('Receiver Confirmed'),
+        default=False,
+        help_text='Whether the receiver confirmed the call completion'
+    )
+    both_confirmed = models.BooleanField(
+        _('Both Confirmed'),
+        default=False,
+        help_text='Whether both parties have confirmed the call completion'
+    )
+    confirmed_at = models.DateTimeField(
+        _('Confirmed At'),
+        null=True,
+        blank=True,
+        help_text='When both parties confirmed the call'
+    )
+
     class Meta:
         verbose_name = _('Call Log')
         verbose_name_plural = _('Call Logs')
@@ -469,7 +541,104 @@ class CallLog(models.Model):
         ]
     
     def __str__(self):
-        return f"Call from {self.caller.name} to {self.receiver.name} - {self.call_status}"
+        return f"Call from {self.caller.email} to {self.receiver.email} - {self.call_status}"
+
+    def confirm_by_caller(self):
+        """Mark call as confirmed by the caller."""
+        self.caller_confirmed = True
+        self._check_both_confirmed()
+        self.save()
+
+    def confirm_by_receiver(self):
+        """Mark call as confirmed by the receiver."""
+        self.receiver_confirmed = True
+        self._check_both_confirmed()
+        self.save()
+
+    def _check_both_confirmed(self):
+        """Check if both parties have confirmed and update monthly tracker."""
+        if self.caller_confirmed and self.receiver_confirmed and not self.both_confirmed:
+            self.both_confirmed = True
+            self.confirmed_at = timezone.now()
+            
+            # Update monthly tracker for both users
+            self._update_monthly_tracker(self.caller)
+            self._update_monthly_tracker(self.receiver)
+
+    def _update_monthly_tracker(self, user):
+        """Update the monthly donation tracker for a user."""
+        tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(user)
+        goal_completed = tracker.increment_call_count()
+        
+        # Send congratulations message if monthly goal is completed
+        if goal_completed:
+            self._send_monthly_goal_message(user, tracker)
+
+    def _send_monthly_goal_message(self, user, tracker):
+        """Send congratulations message for completing monthly goal."""
+        from .models import Message  # Avoid circular import
+        
+        subject = "Monthly Donation Goal Completed!"
+        content = f"Congratulations {user.name}! You have successfully completed your monthly donation goal of 3 confirmed calls in {tracker.month.strftime('%B %Y')}. Thank you for your dedication to helping others!"
+        
+        Message.objects.create(
+            sender=user,  # System message
+            recipient=user,
+            message_type='notification',
+            subject=subject,
+            content=content,
+            donation_request=self.donation_request
+        )
+
+    @classmethod
+    def initiate_call_with_messages(cls, donation_request, caller, receiver):
+        """Initiate a call and send messages to both parties."""
+        # Create the call log
+        call_log = cls.objects.create(
+            donation_request=donation_request,
+            caller=caller,
+            receiver=receiver,
+            call_status='initiated'
+        )
+        
+        # Send message to caller
+        cls._send_call_initiation_message(
+            sender=caller,
+            recipient=caller,
+            donation_request=donation_request,
+            is_caller=True
+        )
+        
+        # Send message to receiver
+        cls._send_call_initiation_message(
+            sender=caller,
+            recipient=receiver,
+            donation_request=donation_request,
+            is_caller=False
+        )
+        
+        return call_log
+
+    @classmethod
+    def _send_call_initiation_message(cls, sender, recipient, donation_request, is_caller):
+        """Send call initiation message to a user."""
+        from .models import Message  # Avoid circular import
+        
+        if is_caller:
+            subject = "Call Initiated - Blood Donation Request"
+            content = f"You have initiated a call for blood donation request (Blood Group: {donation_request.blood_group}). Please confirm once the call is completed successfully."
+        else:
+            subject = "Incoming Call - Blood Donation Request"
+            content = f"You have received a call regarding a blood donation request (Blood Group: {donation_request.blood_group}) from {sender.name}. Please confirm once the call is completed successfully."
+        
+        Message.objects.create(
+            sender=sender,
+            recipient=recipient,
+            message_type='notification',
+            subject=subject,
+            content=content,
+            donation_request=donation_request
+        )
 
 
 class Message(models.Model):
@@ -618,3 +787,170 @@ class Message(models.Model):
         self.delivery_status = 'read'
         self.read_at = timezone.now()
         self.save()
+
+
+class MonthlyDonationTracker(models.Model):
+    """
+    Model to track monthly donation goals and completed calls.
+    Tracks when 3 confirmed calls complete a monthly count.
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='monthly_trackers',
+        help_text='User whose monthly donations are being tracked'
+    )
+    month = models.DateField(
+        _('Month'),
+        help_text='Month being tracked (YYYY-MM-01 format)'
+    )
+    completed_calls_count = models.PositiveIntegerField(
+        _('Completed Calls Count'),
+        default=0,
+        help_text='Number of confirmed calls completed this month'
+    )
+    monthly_goal_completed = models.BooleanField(
+        _('Monthly Goal Completed'),
+        default=False,
+        help_text='Whether the monthly goal of 3 calls has been completed'
+    )
+    goal_completed_at = models.DateTimeField(
+        _('Goal Completed At'),
+        null=True,
+        blank=True,
+        help_text='When the monthly goal was completed'
+    )
+    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('Monthly Donation Tracker')
+        verbose_name_plural = _('Monthly Donation Trackers')
+        unique_together = ['user', 'month']
+        ordering = ['-month']
+        indexes = [
+            models.Index(fields=['user', 'month']),
+            models.Index(fields=['monthly_goal_completed']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.month.strftime('%B %Y')} ({self.completed_calls_count}/3)"
+
+    def increment_call_count(self):
+        """Increment the completed calls count and check if monthly goal is reached."""
+        self.completed_calls_count += 1
+        if self.completed_calls_count >= 3 and not self.monthly_goal_completed:
+            self.monthly_goal_completed = True
+            self.goal_completed_at = timezone.now()
+        self.save()
+        return self.monthly_goal_completed
+
+    def reset_for_new_month(self):
+        """Reset the tracker for a new month."""
+        self.completed_calls_count = 0
+        self.monthly_goal_completed = False
+        self.goal_completed_at = None
+        self.save()
+        return self
+    
+    @classmethod
+    def get_or_create_for_user_month(cls, user, date=None):
+        """Get or create a tracker for the user's current month."""
+        if date is None:
+            date = timezone.now().date()
+        
+        # Get the first day of the month
+        month_start = date.replace(day=1)
+        
+        # Check if user has a tracker for previous month that was completed
+        # If so, and we're in a new month, reset the blocking status
+        previous_trackers = cls.objects.filter(
+            user=user,
+            month__lt=month_start,
+            monthly_goal_completed=True
+        ).order_by('-month')
+        
+        # If there's a previous completed tracker and we're in a new month,
+        # the user should be unblocked for the new month
+        tracker, created = cls.objects.get_or_create(
+            user=user,
+            month=month_start,
+            defaults={
+                'completed_calls_count': 0,
+                'monthly_goal_completed': False,
+                'goal_completed_at': None
+            }
+        )
+        
+        # If tracker already exists but we're checking in a new month,
+        # ensure it's properly reset (this handles edge cases)
+        if not created and tracker.month == month_start:
+            current_month = timezone.now().date().replace(day=1)
+            if tracker.month < current_month:
+                tracker.reset_for_new_month()
+        
+        return tracker, created
+
+
+# Signal to automatically handle monthly resets
+@receiver(post_save, sender=MonthlyDonationTracker)
+def handle_monthly_reset(sender, instance, created, **kwargs):
+    """
+    Signal to automatically reset monthly counts when a new month begins.
+    This ensures users are unblocked at the start of each new month.
+    """
+    if created:
+        # When a new tracker is created, check if user was blocked in previous month
+        current_month = instance.month
+        previous_month = (current_month.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+        
+        try:
+            # Check if user was blocked in previous month
+            prev_tracker = MonthlyDonationTracker.objects.get(
+                user=instance.user,
+                month=previous_month,
+                monthly_goal_completed=True,
+                completed_calls_count__gte=3
+            )
+            
+            # If user was blocked, ensure current tracker is reset
+            if instance.monthly_goal_completed or instance.completed_calls_count > 0:
+                instance.reset_for_new_month()
+                
+                # Send email notification about unblocking
+                month_year = current_month.strftime('%B %Y')
+                _send_unblock_email_notification(instance.user, month_year)
+                
+                # Log the automatic reset
+                print(f"Auto-reset: User {instance.user.email} unblocked for {month_year}")
+                
+        except MonthlyDonationTracker.DoesNotExist:
+            # No previous month tracker found, nothing to reset
+            pass
+        except Exception as e:
+            # Log any errors but don't break the flow
+            print(f"Error in monthly reset signal for {instance.user.email}: {e}")
+
+
+def _send_unblock_email_notification(user, month_year):
+    """
+    Send email notification to user when they get unblocked.
+    
+    Args:
+        user: User object
+        month_year (str): Month and year (e.g., "January 2025")
+    """
+    try:
+        from .email_config import EmailService
+        
+        success, message = EmailService.send_monthly_unblock_notification(user, month_year)
+        
+        if success:
+            print(f"Unblock email sent to {user.email} for {month_year}")
+        else:
+            print(f"Failed to send unblock email to {user.email}: {message}")
+            
+    except ImportError:
+        print(f"EmailService not available - could not send unblock email to {user.email}")
+    except Exception as e:
+        print(f"Error sending unblock email to {user.email}: {e}")

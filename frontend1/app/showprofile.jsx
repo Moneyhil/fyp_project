@@ -20,8 +20,10 @@ export default function ShowProfileScreen() {
   const [showPostCallModal, setShowPostCallModal] = useState(false);
   const [donationRequestId, setDonationRequestId] = useState(null);
   const [callStartTime, setCallStartTime] = useState(null);
+  const [callCounter, setCallCounter] = useState(0);
+  const [isAccountBlocked, setIsAccountBlocked] = useState(false);
 
-  const createDonationRequest = async () => {
+  const handleCreateDonationRequest = async () => {
     try {
       const response = await createDonationRequest({
         donor_id: donor.id,
@@ -30,12 +32,16 @@ export default function ShowProfileScreen() {
         notes: `Blood donation request for ${donor.blood_group} blood group`
       });
       
-      if (response.data.success) {
-        return response.data.data.id;
+      if (response && response.data && response.data.success) {
+        return response.data.donation_request_id;
+      } else {
+        console.error('Invalid response structure:', response);
+        Alert.alert('Error', 'Invalid response from server');
       }
     } catch (error) {
       console.error('Error creating donation request:', error);
-      Alert.alert('Error', 'Failed to create donation request');
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to create donation request';
+      Alert.alert('Error', errorMessage);
     }
     return null;
   };
@@ -61,16 +67,32 @@ export default function ShowProfileScreen() {
           notes: agreed ? 'User confirmed need for blood donation' : 'User declined blood donation request'
         });
         
+        // Increment counter after completing the call
+        const newCounter = callCounter + 1;
+        setCallCounter(newCounter);
+        
+        // Check if account should be blocked after 3 calls
+        if (newCounter >= 3) {
+          setIsAccountBlocked(true);
+          Alert.alert(
+            'Account Blocked',
+            'You have reached the maximum limit of 3 donation requests. Your account has been temporarily blocked.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+          setShowPostCallModal(false);
+          return;
+        }
+        
         if (agreed) {
           Alert.alert(
             'Request Sent',
-            `A donation request has been sent to ${donor.full_name}. They will receive a message asking if they agree to donate blood to you.`,
+            `A donation request has been sent to ${donor.full_name}. They will receive a message asking if they agree to donate blood to you.\n\nCalls made: ${newCounter}/3`,
             [{ text: 'OK', onPress: () => router.back() }]
           );
         } else {
           Alert.alert(
             'Request Cancelled',
-            'The donation request has been cancelled.',
+            `The donation request has been cancelled.\n\nCalls made: ${newCounter}/3`,
             [{ text: 'OK', onPress: () => router.back() }]
           );
         }
@@ -83,11 +105,21 @@ export default function ShowProfileScreen() {
   };
 
   const handleCall = async () => {
+    // Check if account is blocked
+    if (isAccountBlocked) {
+      Alert.alert(
+        'Account Blocked',
+        'Your account has been blocked due to reaching the maximum limit of 3 donation requests. Please contact support if you need assistance.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     const phoneNumber = donor.contact_number;
     if (phoneNumber) {
       Alert.alert(
         'Make a Call',
-        `Do you want to call ${donor.full_name} at ${phoneNumber}?`,
+        `Do you want to call ${donor.full_name} at ${phoneNumber}?\n\nCalls made: ${callCounter}/3`,
         [
           {
             text: 'Cancel',
@@ -97,7 +129,7 @@ export default function ShowProfileScreen() {
             text: 'Call',
             onPress: async () => {
               // Create donation request before making the call
-              const requestId = await createDonationRequest();
+              const requestId = await handleCreateDonationRequest();
               setDonationRequestId(requestId);
               setCallStartTime(new Date());
               
@@ -230,6 +262,8 @@ export default function ShowProfileScreen() {
               </View>
             )}
 
+
+
             {donor.gender && (
               <View style={styles.infoRow}>
                 <View style={styles.infoItem}>
@@ -240,6 +274,38 @@ export default function ShowProfileScreen() {
                   </View>
                 </View>
               </View>
+            )}
+          </View>
+        </View>
+
+        {/* Counter Card */}
+        <View style={styles.counterCard}>
+          <View style={styles.counterHeader}>
+            <Ionicons name="stats-chart" size={24} color={isAccountBlocked ? "#d32f2f" : "#d40000"} />
+            <Text style={styles.counterTitle}>Donation Request Counter</Text>
+          </View>
+          
+          <View style={styles.counterContent}>
+            <View style={styles.counterDisplay}>
+              <Text style={styles.counterNumber}>{callCounter}</Text>
+              <Text style={styles.counterDivider}>/</Text>
+              <Text style={styles.counterLimit}>3</Text>
+            </View>
+            
+            <Text style={[styles.counterStatus, isAccountBlocked && styles.blockedStatus]}>
+              {isAccountBlocked ? "Account Blocked" : "Requests Available"}
+            </Text>
+            
+            {!isAccountBlocked && (
+              <Text style={styles.counterSubtext}>
+                {3 - callCounter} request{3 - callCounter !== 1 ? 's' : ''} remaining
+              </Text>
+            )}
+            
+            {isAccountBlocked && (
+              <Text style={styles.blockedMessage}>
+                Contact support to restore access
+              </Text>
             )}
           </View>
         </View>
@@ -451,5 +517,77 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  blockedText: {
+    color: '#d32f2f',
+    fontWeight: 'bold',
+  },
+  counterCard: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 20,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    marginBottom: 20,
+  },
+  counterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  counterTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 10,
+  },
+  counterContent: {
+    alignItems: 'center',
+  },
+  counterDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  counterNumber: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#d40000',
+  },
+  counterDivider: {
+    fontSize: 24,
+    color: '#666',
+    marginHorizontal: 8,
+  },
+  counterLimit: {
+    fontSize: 24,
+    color: '#666',
+    fontWeight: '500',
+  },
+  counterStatus: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4caf50',
+    marginBottom: 5,
+  },
+  blockedStatus: {
+    color: '#d32f2f',
+  },
+  counterSubtext: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  blockedMessage: {
+    fontSize: 14,
+    color: '#d32f2f',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });

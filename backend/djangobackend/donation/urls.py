@@ -1,10 +1,16 @@
 from django.urls import path
 from donation import views
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
 
 urlpatterns = [
 
     path("admin-login/", views.AdminLoginView.as_view(), name="admin-login"),
     path("admin-logout/", views.AdminLogoutView.as_view(), name="admin-logout"),
+    path("admin-create/", views.AdminCreateView.as_view(), name="admin-create"),
     path("admin-forgot-password/", views.AdminForgotPasswordView.as_view(), name="admin-forgot-password"),
     path("admin-reset-password/", views.AdminResetPasswordView.as_view(), name="admin-reset-password"),
     
@@ -20,6 +26,11 @@ urlpatterns = [
     path('verify-otp/', views.VerifyOTPView.as_view(), name='verify-otp'),
     path('login/', views.LoginView.as_view(), name='login'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
+    
+    # JWT Token endpoints
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     
     # User password reset
     path('forgot-password/', views.UserForgotPasswordView.as_view(), name='user-forgot-password'),
@@ -40,6 +51,11 @@ urlpatterns = [
     
     # Call logs
     path('call-logs/create/', views.CallLogCreateView.as_view(), name='call-log-create'),
+    path('calls/initiate/', views.CallInitiateView.as_view(), name='call-initiate'),
+    path('calls/<int:call_id>/confirm/', views.CallConfirmView.as_view(), name='call-confirm'),
+    
+    # Monthly tracking
+    path('monthly-tracker/', views.MonthlyTrackerView.as_view(), name='monthly-tracker'),
     
     # Messages
     path('messages/', views.MessageListView.as_view(), name='message-list'),

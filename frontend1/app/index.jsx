@@ -1,13 +1,15 @@
 import { View, Text, Image, StyleSheet, TouchableOpacity} from 'react-native';
-import { useRouter } from 'expo-router'; 
+import { useRouter } from 'expo-router';
+import AuthCheck from './AuthCheck'; 
 
 export default function BloodDonationApp() {
   const router = useRouter();
   return (
-    <View style={styles.container}>
-    <View style={styles.qoutecard}>
-      <Text style= {styles.qoutetext}>"Every drop of blood you donate is a silent promise of Hope,a powerful act of love and a lifeline for some one in need."</Text>
-      </View>
+    <AuthCheck>
+      <View style={styles.container}>
+        <View style={styles.qoutecard}>
+          <Text style= {styles.qoutetext}>"Every drop of blood you donate is a silent promise of Hope,a powerful act of love and a lifeline for some one in need."</Text>
+        </View>
         <Text style={styles.appname}>"Welcome to the Blood Donation App"</Text>
         <Image
           source={require('../assets/images/mandw.png')} 
@@ -22,8 +24,8 @@ export default function BloodDonationApp() {
           <Text style={styles.buttonLabel}>Donate Now</Text>
         </TouchableOpacity>
         </View>
-  
-    </View>
+      </View>
+    </AuthCheck>
   );
 }
 
