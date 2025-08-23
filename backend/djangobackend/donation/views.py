@@ -1,4 +1,4 @@
-from django.contrib.auth import authenticate, login, logout
+# Removed unused session-based auth imports - using JWT tokens instead
 from django.http import JsonResponse
 from django.views import View
 from django.core.mail import send_mail
@@ -15,10 +15,8 @@ from django_ratelimit.decorators import ratelimit
 from rest_framework_simplejwt.tokens import RefreshToken
 import secrets
 import logging
-from django.contrib.auth.decorators import user_passes_test
 from django.utils.decorators import method_decorator
-from django.views.decorators.http import require_http_methods
-# Removed csrf_exempt import - using JWT-only authentication
+# Removed unused session-based auth decorators - using JWT-only authentication
 
 from .models import User, Profile, DonationRequest, CallLog, Message, Admin
 from .serializers import (
@@ -259,20 +257,12 @@ class AdminLogoutView(View):
                             # If blacklisting fails, continue with logout
                             print(f"Token blacklisting failed: {e}")
                     
-                    # Clear any session data if exists
-                    request.session.flush()
-                    
                     return JsonResponse({"message": "Admin logged out successfully"})
                 else:
                     return JsonResponse({"error": "Invalid admin token"}, status=401)
                     
             except (InvalidToken, TokenError, jwt.InvalidTokenError) as e:
                 return JsonResponse({"error": "Invalid token"}, status=401)
-        
-        # Fallback: check session-based auth (legacy)
-        if request.session.get('admin_id'):
-            request.session.flush()
-            return JsonResponse({"message": "Admin logged out successfully"})
             
         return JsonResponse({"error": "Not authorized"}, status=401)
 

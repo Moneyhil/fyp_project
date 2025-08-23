@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 class Command(BaseCommand):
-    help = 'Setup Windows Task Scheduler for monthly donation count reset (Alternative to django-crontab)'
+    help = 'Setup Windows Task Scheduler for monthly donation count reset'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -56,7 +56,7 @@ class Command(BaseCommand):
         python_exe = subprocess.check_output('where python', shell=True, text=True).strip().split('\n')[0]
         
         # Create the command to run
-        command = f'"{python_exe}" "{manage_py}" monthly_cron_job'
+        command = f'"{python_exe}" "{manage_py}" monthly_reset_job'
         
         # Create scheduled task command (run as current user to avoid permission issues)
         schtasks_cmd = [

@@ -36,21 +36,20 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',
+    'django.contrib.sessions',  # Required for Django admin interface
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',  # For token blacklisting
     'donation',
     'corsheaders',
-    'django_crontab',  # For automated cron jobs
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',  # Required for Django admin interface
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -185,14 +184,4 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_LIFETIME': timedelta(days=30),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=90),
 }
-
-# Cron Jobs Configuration
-CRONJOBS = [
-    # Run monthly reset on 1st day of every month at 00:01
-    ('1 0 1 * *', 'donation.management.commands.monthly_cron_job'),
-]
-
-# Cron job settings
-CRONTAB_COMMAND_SUFFIX = '2>&1'
-CRONTAB_DJANGO_SETTINGS_MODULE = 'djangobackend.settings'
 
