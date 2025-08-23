@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import * as Yup from "yup";
@@ -8,6 +8,7 @@ import api from "../constants/API";
 
 export default function Registration() {
   const router = useRouter();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -19,6 +20,36 @@ export default function Registration() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    checkAuthAndRedirect();
+  }, []);
+
+  const checkAuthAndRedirect = async () => {
+    try {
+      const authToken = await AsyncStorage.getItem('authToken');
+      const userInfo = await AsyncStorage.getItem('userInfo');
+      
+      if (authToken && userInfo) {
+        // User is already logged in, redirect to appropriate screen
+        const user = JSON.parse(userInfo);
+        if (user.is_staff) {
+          router.replace('/admindashboard');
+        } else {
+          router.replace('/home');
+        }
+        return;
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+  if (isCheckingAuth) {
+    return null; // Show nothing while checking
+  }
 
   // Validation schema
   const validationSchema = Yup.object().shape({

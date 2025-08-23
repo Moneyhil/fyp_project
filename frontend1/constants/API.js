@@ -2,7 +2,7 @@
 import axios from 'axios';
 
  const api = axios.create({
-  baseURL: 'http://172.20.10.5:8000', // Django server computer IP address
+  baseURL: 'http://192.168.100.16:8000', // Django server computer IP address
   headers: {
     'Content-Type': 'application/json',
   },
@@ -42,6 +42,11 @@ export const createProfile = (data) => {
 
 export const getProfile = (email) => {
   return api.get(`/donation/profile/${email}/`);
+};
+
+// Monthly Donation Tracker API
+export const getMonthlyTracker = (userEmail) => {
+  return api.get(`/donation/monthly-tracker/?user_email=${userEmail}`);
 };
 
 export default api;

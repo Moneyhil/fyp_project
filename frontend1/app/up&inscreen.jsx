@@ -1,8 +1,41 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router'; 
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function mainscreen(){
     const router = useRouter();
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+    useEffect(() => {
+        checkAuthAndRedirect();
+    }, []);
+
+    const checkAuthAndRedirect = async () => {
+        try {
+            const authToken = await AsyncStorage.getItem('authToken');
+            const userInfo = await AsyncStorage.getItem('userInfo');
+            
+            if (authToken && userInfo) {
+                // User is already logged in, redirect to appropriate screen
+                const user = JSON.parse(userInfo);
+                if (user.is_staff) {
+                    router.replace('/admindashboard');
+                } else {
+                    router.replace('/home');
+                }
+                return;
+            }
+        } catch (error) {
+            console.error('Auth check error:', error);
+        } finally {
+            setIsCheckingAuth(false);
+        }
+    };
+
+    if (isCheckingAuth) {
+        return null; // Show nothing while checking
+    }
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Blood Donation App</Text>
@@ -15,14 +48,20 @@ export default function mainscreen(){
 
       <Text style={styles.text}>Donate Blood, Save lives!!</Text>
 
-      <TouchableOpacity style={styles.signupbutton} onPress={() => router.push('/signup')}>
+      <TouchableOpacity style={styles.button} onPress={() => router.push('/signup')}>
         <Text style={styles.buttontext}>Sign Up</Text>
       </TouchableOpacity>
 
-      <Text style={styles.accounttext}>Already have account.!</Text>
+      <Text style={styles.accounttext}>Already have an account??</Text>
 
-      <TouchableOpacity style={styles.loginbutton} onPress={() => router.push('/signin')}>
-        <Text style={styles.buttontext}>Log In</Text>
+      <TouchableOpacity style={styles.button} onPress={() => router.push('/signin')}>
+        <Text style={styles.buttontext}>Sign In</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.accounttext}>Only Admins can sign in...</Text>
+
+      <TouchableOpacity style={styles.adminbutton} onPress={() => router.push('/adminsignin')}>
+        <Text style={styles.buttontext}>Admin Sign In</Text>
       </TouchableOpacity>
     </View>
   );
@@ -51,7 +90,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     fontWeight: '600',
   },
-  signupbutton: {
+  button: {
     backgroundColor: '#d40000',
     paddingHorizontal:100,
     paddingVertical: 12,
@@ -68,13 +107,13 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 5,
   },
-  loginbutton: {
+  adminbutton: {
     backgroundColor: '#d40000',
+    paddingHorizontal:70,
     paddingVertical: 12,
-    paddingHorizontal:100,
     borderRadius: 25,
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 10,
+    marginBottom: 20,
     alignItems: 'center',
     shadowColor: '#d40000',
     shadowOffset: {
@@ -83,7 +122,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 1,
     shadowRadius: 6,
-    elevation: 5,
+    elevation: 5
   },
   buttontext: {
     color: '#fff9f8ff',
@@ -93,6 +132,7 @@ const styles = StyleSheet.create({
   accounttext: {
     fontSize: 12,
     color: '#777',
-    marginBottom: 5,
+    marginBottom: 2,
+    marginTop: 10,
   },
 });

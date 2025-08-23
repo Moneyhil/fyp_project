@@ -71,10 +71,43 @@ export default function AdminDashboard() {
           text: "Logout",
           onPress: async () => {
             try {
+              // Get tokens from storage
+              const authToken = await AsyncStorage.getItem("authToken");
+              const refreshToken = await AsyncStorage.getItem("refreshToken");
+              
+              // Call backend logout API to blacklist tokens
+              if (authToken && refreshToken) {
+                try {
+                  await api.post(
+                    '/donation/admin-logout/',
+                    { refresh_token: refreshToken },
+                    {
+                      headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                      }
+                    }
+                  );
+                } catch (apiError) {
+                  console.log('Admin logout API error:', apiError);
+                  // Continue with logout even if API call fails
+                }
+              }
+              
+              // Clear all tokens and user data from storage
               await AsyncStorage.multiRemove(["authToken", "refreshToken", "userInfo"]);
-              router.replace("/signin");
+              
+              Alert.alert('Success', 'Logged out successfully!', [
+                {
+                  text: 'OK',
+                  onPress: () => router.replace("/signin")
+                }
+              ]);
             } catch (error) {
               console.error("Logout error:", error);
+              // Fallback: clear storage and redirect even on error
+              await AsyncStorage.multiRemove(["authToken", "refreshToken", "userInfo"]);
+              router.replace("/signin");
             }
           },
         },

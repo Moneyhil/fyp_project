@@ -6,7 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import api from "../constants/API";
  
-export default function Login() {
+export default function AdminLogin() {
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [formData, setFormData] = useState({
@@ -17,7 +17,6 @@ export default function Login() {
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
 
   useEffect(() => {
     checkAuthAndRedirect();
@@ -73,7 +72,7 @@ export default function Login() {
     return touched[field] && errors[field] ? [styles.input, styles.inputError] : styles.input;
   };
 
-  const handleLogin = async () => {
+  const handleAdminLogin = async () => {
     setTouched({ email: true, password: true });
     setLoading(true);
 
@@ -82,7 +81,7 @@ export default function Login() {
       setErrors({});
 
       const response = await api.post(
-        "/donation/login/",
+        "/donation/admin-login/",
         {
           email: formData.email,
           password: formData.password,
@@ -100,37 +99,31 @@ export default function Login() {
         }
         await AsyncStorage.setItem("userInfo", JSON.stringify(user));
 
-        Alert.alert("Success", "Login successful!");
-        router.replace("/home");
+        Alert.alert("Success", "Admin login successful!", [
+          {
+            text: "OK",
+            onPress: () => {
+              router.replace("/admindashboard");
+            },
+          },
+        ]);
       }
-    } catch (err) {
-      if (err.response) {
-        // Handle backend validation errors
-        if (err.response.status === 400 && err.response.data) {
-          const errorData = err.response.data;
-          if (typeof errorData === 'object' && !errorData.error) {
-            // Handle field-specific validation errors
-            const formErrors = {};
-            Object.keys(errorData).forEach(field => {
-              if (Array.isArray(errorData[field])) {
-                formErrors[field] = errorData[field][0];
-              } else {
-                formErrors[field] = errorData[field];
-              }
-            });
-            setErrors(formErrors);
-          } else {
-            Alert.alert("Error", errorData.error || errorData.non_field_errors?.[0] || "Invalid email or password");
-          }
-        } else {
-          Alert.alert("Error", err.response.data?.error || "Invalid email or password");
-        }
-      } else if (err.name === "ValidationError") {
+    } catch (error) {
+      console.error("Admin login error:", error);
+
+      if (error.name === "ValidationError") {
         const formErrors = {};
-        err.inner.forEach((e) => (formErrors[e.path] = e.message));
+        error.inner.forEach((e) => {
+          formErrors[e.path] = e.message;
+        });
         setErrors(formErrors);
+        Alert.alert("Validation Error", "Please fix the errors in the form.");
+      } else if (error.response) {
+        const errData = error.response.data;
+        let errorMessage = errData?.error || errData?.message || "Admin login failed. Please try again.";
+        Alert.alert("Error", errorMessage);
       } else {
-        Alert.alert("Error", "Network error. Please try again.");
+        Alert.alert("Error", "An unexpected error occurred. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -145,57 +138,56 @@ export default function Login() {
     >
       <ScrollView contentContainerStyle={styles.container}>
         <View>
-          <Text style={styles.heading}>Log In</Text>
+          <Text style={styles.heading}>Admin Sign In</Text>
 
-        <Text style={styles.label}>Email Address</Text>
-        <TextInput
-          placeholder="Enter your email"
-          value={formData.email}
-          onChangeText={(text) => handleChange("email", text)}
-          onBlur={() => handleBlur("email")}
-          style={getInputStyle("email")}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        {touched.email && errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.passwordContainer}>
+          <Text style={styles.label}>Admin Email</Text>
           <TextInput
-            placeholder="********"
-            value={formData.password}
-            onChangeText={(text) => handleChange("password", text)}
-            onBlur={() => handleBlur("password")}
-            style={[getInputStyle("password"), styles.passwordInput]}
-            secureTextEntry={!showPassword}
+            placeholder="Enter admin email"
+            value={formData.email}
+            onChangeText={(text) => handleChange("email", text)}
+            onBlur={() => handleBlur("email")}
+            style={getInputStyle("email")}
+            keyboardType="email-address"
+            autoCapitalize="none"
           />
-          <TouchableOpacity
-            style={styles.eyeIcon}
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            <Ionicons
-              name={showPassword ? "eye-off" : "eye"}
-              size={20}
-              color="#666"
+          {touched.email && errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.passwordContainer}>
+            <TextInput
+              placeholder="Enter admin password"
+              value={formData.password}
+              onChangeText={(text) => handleChange("password", text)}
+              onBlur={() => handleBlur("password")}
+              style={[getInputStyle("password"), styles.passwordInput]}
+              secureTextEntry={!showPassword}
             />
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off" : "eye"}
+                size={20}
+                color="#666"
+              />
+            </TouchableOpacity>
+          </View>
+          {touched.password && errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleAdminLogin}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>{loading ? "Signing In..." : "Admin Sign In"}</Text>
           </TouchableOpacity>
-        </View>
-        {touched.password && errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
-        <TouchableOpacity onPress={() => router.push('/forgetpassword')}>
-          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? "Processing..." : "Log In"}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.text}>
-          Don't have an account?{" "}
-          <Text style={styles.Link} onPress={() => router.push("/signup")}>
-            Sign Up
-          </Text>
-        </Text>
+          <TouchableOpacity onPress={() => router.push("/up&inscreen")}>
+            <Text style={styles.text}>
+              Back to <Text style={styles.Link}>Main Screen</Text>
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -231,19 +223,14 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     borderWidth: 1,
     borderColor: "#f2f2f2",
-  },
-  passwordContainer: {
-    position: "relative",
-    marginBottom: 5,
-  },
-  passwordInput: {
-    paddingRight: 45,
-  },
-  eyeIcon: {
-    position: "absolute",
-    right: 15,
-    top: 12,
-    padding: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   inputError: {
     borderColor: "#ff0000",
@@ -260,6 +247,17 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
     alignItems: "center",
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  buttonDisabled: {
+    backgroundColor: "#ccc",
   },
   buttonText: {
     color: "#fff",
@@ -275,13 +273,16 @@ const styles = StyleSheet.create({
     color: "#0000ff",
     textDecorationLine: "underline",
   },
-  forgotPasswordText: {
-    color: "#0000ff",
-    textAlign: "right",
-    marginTop: 10,
-    marginBottom: 10,
-    textDecorationLine: "underline",
-    fontSize: 14,
+  passwordContainer: {
+    position: "relative",
   },
-
+  passwordInput: {
+    paddingRight: 45,
+  },
+  eyeIcon: {
+    position: "absolute",
+    right: 15,
+    top: 12,
+    zIndex: 1,
+  },
 });

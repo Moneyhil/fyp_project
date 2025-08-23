@@ -8,20 +8,20 @@ export default function BloodDonationApp() {
     <AuthCheck>
       <View style={styles.container}>
         <View style={styles.qoutecard}>
-          <Text style= {styles.qoutetext}>"Every drop of blood you donate is a silent promise of Hope,a powerful act of love and a lifeline for some one in need."</Text>
+          <Text style= {styles.qoutetext}>"Every Drop of Blood you Donate is a Silent Promise of Hope, a Powerful act of love and a Lifeline for some one in Need."</Text>
         </View>
-        <Text style={styles.appname}>"Welcome to the Blood Donation App"</Text>
+        <Text style={styles.appname}>"Welcome"</Text>
         <Image
           source={require('../assets/images/mandw.png')} 
           style={styles.image}
           resizeMode="contain" />
         <View style={styles.card}>
-          <Text style={styles.textcard}>"Becuase someone, Somewhere, is counting on you."</Text>
+          <Text style={styles.textcard}>"Because Someone, Somewhere, is Counting on You."</Text>
          
          <TouchableOpacity
           style={styles.button}
-          onPress={() => router.push('/up&inscreen')}>
-          <Text style={styles.buttonLabel}>Donate Now</Text>
+          onPress={() => router.replace('/up&inscreen')}>
+          <Text style={styles.buttonLabel}>Donate</Text>
         </TouchableOpacity>
         </View>
       </View>
@@ -60,8 +60,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   appname: {
-    marginLeft:60,
-    fontSize: 24,
+    alignItems: "center",
+    fontSize: 35,
     fontWeight: 'bold',
   },
   image: {

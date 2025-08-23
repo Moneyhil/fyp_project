@@ -1,11 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../constants/API';
 
 export default function ForgetPassword() {
   const [email, setEmail] = useState('');
   const router = useRouter();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    checkAuthAndRedirect();
+  }, []);
+
+  const checkAuthAndRedirect = async () => {
+    try {
+      const authToken = await AsyncStorage.getItem('authToken');
+      const userInfo = await AsyncStorage.getItem('userInfo');
+      
+      if (authToken && userInfo) {
+        // User is already logged in, redirect to appropriate screen
+        const user = JSON.parse(userInfo);
+        if (user.is_staff) {
+          router.replace('/admindashboard');
+        } else {
+          router.replace('/home');
+        }
+        return;
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+  if (isCheckingAuth) {
+    return null; // Show nothing while checking
+  }
 
   const handleResetPassword = async () => {
     if (!email) {

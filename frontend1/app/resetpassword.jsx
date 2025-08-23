@@ -15,12 +15,43 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Yup from 'yup';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../constants/API';
 
 export default function ResetPassword() {
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const email = params.email || '';
+  const { email } = useLocalSearchParams();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    checkAuthAndRedirect();
+  }, []);
+
+  const checkAuthAndRedirect = async () => {
+    try {
+      const authToken = await AsyncStorage.getItem('authToken');
+      const userInfo = await AsyncStorage.getItem('userInfo');
+      
+      if (authToken && userInfo) {
+        // User is already logged in, redirect to appropriate screen
+        const user = JSON.parse(userInfo);
+        if (user.is_staff) {
+          router.replace('/admindashboard');
+        } else {
+          router.replace('/home');
+        }
+        return;
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+  if (isCheckingAuth) {
+    return null; // Show nothing while checking
+  }
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [newPassword, setNewPassword] = useState('');

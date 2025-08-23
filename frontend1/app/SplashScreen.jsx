@@ -4,21 +4,9 @@ import Svg, { Path, Circle } from 'react-native-svg';
 
 const BloodDropLogo = () => (
   <Svg width="150" height="150" viewBox="0 0 150 150">
-    {/* Blood drop shape */}
+    {/* Simple blood drop shape */}
     <Path
       d="M75 20 C85 30, 110 55, 110 85 C110 110, 95 125, 75 125 C55 125, 40 110, 40 85 C40 55, 65 30, 75 20 Z"
-      fill="#E53E3E"
-      stroke="#C53030"
-      strokeWidth="2"
-    />
-    {/* Heart symbol inside */}
-    <Path
-      d="M75 65 C70 55, 55 55, 55 70 C55 80, 75 95, 75 95 C75 95, 95 80, 95 70 C95 55, 80 55, 75 65 Z"
-      fill="#FFFFFF"
-    />
-    {/* Plus sign for medical symbol */}
-    <Path
-      d="M72 45 L78 45 L78 55 L88 55 L88 61 L78 61 L78 71 L72 71 L72 61 L62 61 L62 55 L72 55 Z"
       fill="#E53E3E"
     />
   </Svg>
@@ -87,7 +75,7 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#E53E3E', // Red text color
+    color: '#d40000', // Red text color
     textAlign: 'center',
     marginBottom: 10,
     textShadowColor: 'rgba(229, 62, 62, 0.2)',

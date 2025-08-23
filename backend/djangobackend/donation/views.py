@@ -64,10 +64,11 @@ def admin_required(view_func):
             # Decode token to get user info
             decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
             user_id = decoded_token.get('user_id')
+            is_admin = decoded_token.get('is_admin', False)
+            admin_id = decoded_token.get('admin_id')
             
-            # Check if this is an admin user (user_id > 10000 indicates admin)
-            if user_id and user_id > 10000:
-                admin_id = user_id - 10000
+            # Check if this is an admin token
+            if is_admin and admin_id:
                 try:
                     admin = Admin.objects.get(id=admin_id, is_active=True)
                     # Store admin info in request for use in view
@@ -113,28 +114,82 @@ class AdminLoginView(View):
                 admin.last_login = timezone.now()
                 admin.save()
                 
-                # Create a temporary user object for JWT token generation
-                # We'll use the admin's email as username and set is_staff=True
-                from django.contrib.auth import get_user_model
-                User = get_user_model()
+                # Generate JWT tokens manually without using RefreshToken.for_user
+                # to avoid database foreign key constraint issues
+                from rest_framework_simplejwt.tokens import AccessToken
+                from django.conf import settings
+                import jwt
+                from datetime import datetime, timedelta
                 
-                # Create a temporary user-like object for JWT
-                temp_user = User(
-                    id=admin.id + 10000,  # Offset to avoid conflicts
-                    email=admin.email,
-                    is_staff=True,
-                    is_active=True
-                )
+                # Create custom JWT payload for admin
+                import uuid
                 
-                # Generate JWT tokens
-                refresh = RefreshToken.for_user(temp_user)
-                access_token = str(refresh.access_token)
+                access_jti = str(uuid.uuid4())
+                refresh_jti = str(uuid.uuid4())
+                
+                payload = {
+                    'user_id': admin.id + 10000,  # Offset to identify as admin
+                    'email': admin.email,
+                    'is_staff': True,
+                    'is_admin': True,
+                    'admin_id': admin.id,
+                    'exp': datetime.utcnow() + timedelta(days=30),
+                    'iat': datetime.utcnow(),
+                    'jti': access_jti,
+                    'token_type': 'access'
+                }
+                
+                # Generate access token manually
+                access_token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+                
+                # Create refresh token payload
+                refresh_payload = {
+                    'user_id': admin.id + 10000,
+                    'email': admin.email,
+                    'is_admin': True,
+                    'admin_id': admin.id,
+                    'exp': datetime.utcnow() + timedelta(days=90),
+                    'iat': datetime.utcnow(),
+                    'jti': refresh_jti,
+                    'token_type': 'refresh'
+                }
+                
+                refresh_token = jwt.encode(refresh_payload, settings.SECRET_KEY, algorithm='HS256')
+                
+                # Store the refresh token in OutstandingToken for blacklisting
+                try:
+                    from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+                    from django.contrib.auth import get_user_model
+                    
+                    # Create a temporary user object for the token (required by OutstandingToken)
+                    User = get_user_model()
+                    temp_user, created = User.objects.get_or_create(
+                        id=admin.id + 10000,
+                        defaults={
+                            'email': f'admin_{admin.id}@temp.local',
+                            'name': f'Admin {admin.name}',
+                            'is_active': False,  # Mark as inactive to avoid conflicts
+                            'is_verified': True
+                        }
+                    )
+                    
+                    # Store the outstanding token
+                    OutstandingToken.objects.create(
+                        user=temp_user,
+                        jti=refresh_jti,
+                        token=refresh_token,
+                        created_at=datetime.utcnow(),
+                        expires_at=datetime.utcnow() + timedelta(days=90)
+                    )
+                except Exception as e:
+                    # If storing fails, continue without it (logout will still work)
+                    print(f"Failed to store outstanding token: {e}")
                 
                 return JsonResponse({
                     "message": "Admin logged in successfully",
                     "token": access_token,
                     "access_token": access_token,
-                    "refresh_token": str(refresh),
+                    "refresh_token": refresh_token,
                     "user": {
                         "id": admin.id,
                         "name": admin.name,
@@ -152,13 +207,73 @@ class AdminLoginView(View):
 class AdminLogoutView(View):
     @method_decorator(ratelimit(key='ip', rate='5/m'))
     def post(self, request):
+        # Handle both JSON and form data
+        if request.content_type == 'application/json':
+            import json
+            try:
+                data = json.loads(request.body)
+                refresh_token = data.get("refresh_token")
+            except json.JSONDecodeError:
+                refresh_token = None
+        else:
+            refresh_token = request.POST.get("refresh_token")
+        
+        # Check for JWT token in Authorization header
+        auth_header = request.META.get('HTTP_AUTHORIZATION')
+        if auth_header and auth_header.startswith('Bearer '):
+            try:
+                from rest_framework_simplejwt.tokens import UntypedToken
+                from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+                import jwt
+                from django.conf import settings
+                
+                # Extract and validate access token
+                token = auth_header.split(' ')[1]
+                UntypedToken(token)
+                
+                # Decode token to get admin info
+                decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+                is_admin = decoded_token.get('is_admin', False)
+                admin_id = decoded_token.get('admin_id')
+                
+                if is_admin and admin_id:
+                    # Blacklist the refresh token if provided
+                    if refresh_token:
+                        try:
+                            from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+                            from rest_framework_simplejwt.tokens import RefreshToken
+                            
+                            # Decode refresh token to get its jti
+                            refresh_decoded = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=['HS256'])
+                            jti = refresh_decoded.get('jti')
+                            
+                            if jti:
+                                # Try to find and blacklist the token
+                                try:
+                                    outstanding_token = OutstandingToken.objects.get(jti=jti)
+                                    BlacklistedToken.objects.get_or_create(token=outstanding_token)
+                                except OutstandingToken.DoesNotExist:
+                                    # Token not found in outstanding tokens, that's okay
+                                    pass
+                        except Exception as e:
+                            # If blacklisting fails, continue with logout
+                            print(f"Token blacklisting failed: {e}")
+                    
+                    # Clear any session data if exists
+                    request.session.flush()
+                    
+                    return JsonResponse({"message": "Admin logged out successfully"})
+                else:
+                    return JsonResponse({"error": "Invalid admin token"}, status=401)
+                    
+            except (InvalidToken, TokenError, jwt.InvalidTokenError) as e:
+                return JsonResponse({"error": "Invalid token"}, status=401)
+        
+        # Fallback: check session-based auth (legacy)
         if request.session.get('admin_id'):
-            # Clear admin session data
-            request.session.pop('admin_id', None)
-            request.session.pop('admin_email', None)
-            request.session.pop('admin_name', None)
-            request.session.pop('is_superuser', None)
+            request.session.flush()
             return JsonResponse({"message": "Admin logged out successfully"})
+            
         return JsonResponse({"error": "Not authorized"}, status=401)
 
 

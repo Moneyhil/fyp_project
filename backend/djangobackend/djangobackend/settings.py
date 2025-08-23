@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',  # For token blacklisting
     'donation',
     'corsheaders',
+    'django_crontab',  # For automated cron jobs
 ]
 
 MIDDLEWARE = [
@@ -64,7 +65,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8082",
     "http://127.0.0.1:8082",
     "http://192.168.100.16:8000",
-    "http://172.20.10.5:8000"
+    "http://172.20.10.5:8000",
+    "http://192.168.1.8:8000",
+    "http://192.168.1.8:8000"
 ]
 
 ROOT_URLCONF = 'djangobackend.urls'
@@ -182,4 +185,14 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_LIFETIME': timedelta(days=30),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=90),
 }
+
+# Cron Jobs Configuration
+CRONJOBS = [
+    # Run monthly reset on 1st day of every month at 00:01
+    ('1 0 1 * *', 'donation.management.commands.monthly_cron_job'),
+]
+
+# Cron job settings
+CRONTAB_COMMAND_SUFFIX = '2>&1'
+CRONTAB_DJANGO_SETTINGS_MODULE = 'djangobackend.settings'
 

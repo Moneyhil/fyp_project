@@ -10,12 +10,13 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getProfile } from '../constants/API';
+import api, { getProfile, getMonthlyTracker } from '../constants/API';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback } from 'react';
 
 export default function UsersProfileScreen() {
   const [profileData, setProfileData] = useState(null);
+  const [donationTracker, setDonationTracker] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -33,6 +34,7 @@ export default function UsersProfileScreen() {
   const fetchUserProfile = async () => {
     try {
       setLoading(true);
+      setError(null);
       
       // Debug: Check what's in AsyncStorage
       const userString = await AsyncStorage.getItem('userData');
@@ -51,9 +53,19 @@ export default function UsersProfileScreen() {
       const user = JSON.parse(userString);
       const email = user.email;
 
-      const response = await getProfile(email);
-      if (response.status === 200) {
-        setProfileData(response.data.profile);
+      // Fetch profile data and donation tracker in parallel
+      const [profileResponse, trackerResponse] = await Promise.all([
+        getProfile(email),
+        getMonthlyTracker(email)
+      ]);
+      
+      if (profileResponse.status === 200) {
+        setProfileData(profileResponse.data.profile);
+      }
+      
+      // Set donation tracker data (it's okay if this fails)
+      if (trackerResponse.data) {
+        setDonationTracker(trackerResponse.data);
       }
     } catch (error) {
       console.error('Profile fetch error:', error);
@@ -205,6 +217,44 @@ export default function UsersProfileScreen() {
           </View>
         </View>
 
+        {/* Donation Count Card */}
+        {donationTracker && (
+          <View style={styles.donationCard}>
+            <View style={styles.donationHeader}>
+              <Ionicons name="heart" size={24} color="#d40000" />
+              <Text style={styles.donationTitle}>Monthly Donation Progress</Text>
+            </View>
+            
+            <View style={styles.donationContent}>
+              <View style={styles.donationDisplay}>
+                <Text style={styles.donationNumber}>{donationTracker.completed_calls_count}</Text>
+                <Text style={styles.donationDivider}>/</Text>
+                <Text style={styles.donationLimit}>3</Text>
+              </View>
+              
+              <Text style={[styles.donationStatus, donationTracker.monthly_goal_completed && styles.completedStatus]}>
+                {donationTracker.monthly_goal_completed ? "Monthly Goal Completed!" : "Donations This Month"}
+              </Text>
+              
+              <Text style={styles.donationMonth}>
+                {donationTracker.month}
+              </Text>
+              
+              {!donationTracker.monthly_goal_completed && (
+                <Text style={styles.donationSubtext}>
+                  {3 - donationTracker.completed_calls_count} more donation{3 - donationTracker.completed_calls_count !== 1 ? 's' : ''} to complete monthly goal
+                </Text>
+              )}
+              
+              {donationTracker.monthly_goal_completed && donationTracker.goal_completed_at && (
+                <Text style={styles.completedMessage}>
+                  Completed on {new Date(donationTracker.goal_completed_at).toLocaleDateString()}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
       </View>
     </SafeAreaView>
   );
@@ -307,6 +357,80 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     fontWeight: '500',
+  },
+  donationCard: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 20,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    marginBottom: 20,
+  },
+  donationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  donationTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 10,
+  },
+  donationContent: {
+    alignItems: 'center',
+  },
+  donationDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  donationNumber: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#d40000',
+  },
+  donationDivider: {
+    fontSize: 24,
+    color: '#666',
+    marginHorizontal: 8,
+  },
+  donationLimit: {
+    fontSize: 24,
+    color: '#666',
+    fontWeight: '500',
+  },
+  donationStatus: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4caf50',
+    marginBottom: 5,
+  },
+  completedStatus: {
+    color: '#d40000',
+  },
+  donationMonth: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  donationSubtext: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  completedMessage: {
+    fontSize: 14,
+    color: '#4caf50',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 
 
