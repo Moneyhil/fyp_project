@@ -18,7 +18,7 @@ import logging
 from django.utils.decorators import method_decorator
 # Removed unused session-based auth decorators - using JWT-only authentication
 
-from .models import User, Profile, DonationRequest, CallLog, Message, Admin
+from .models import User, Profile, DonationRequest, CallLog, Admin, MonthlyDonationTracker
 from .serializers import (
     UserSerializer,
     SendOTPSerializer,
@@ -28,10 +28,10 @@ from .serializers import (
     ProfileSerializer,
     DonationRequestSerializer,
     CallLogSerializer,
-    MessageSerializer,
+
     DonationRequestResponseSerializer,
 )
-from .services import DonationRequestService, CallLogService, NotificationService
+from .services import DonationRequestService
 
 logger = logging.getLogger(__name__)
 
@@ -382,6 +382,58 @@ class BlockUnblockUserView(View):
             return JsonResponse({'message': f'User {status} successfully'})
         except User.DoesNotExist:
             return JsonResponse({'error': 'User not found'}, status=404)
+
+class BlockedProfilesView(View):
+    @method_decorator([admin_required, ratelimit(key='ip', rate='60/m')])
+    def get(self, request):
+        """
+        Fetch blocked profiles from MonthlyDonationTracker where users have completed 3+ calls
+        Shows both currently blocked and previously blocked users
+        """
+        try:
+            from django.utils import timezone
+            
+            # Get current month
+            current_month = timezone.now().date().replace(day=1)
+            
+            # Get blocked profiles from MonthlyDonationTracker (current and previous months)
+            blocked_trackers = MonthlyDonationTracker.objects.filter(
+                monthly_goal_completed=True,
+                completed_calls_count__gte=3,
+                # Remove the user__is_active=False filter to show all blocked profiles
+            ).select_related('user').order_by('-goal_completed_at')
+            
+            blocked_profiles = []
+            for tracker in blocked_trackers:
+                user = tracker.user
+                
+                # Determine current blocking status
+                is_currently_blocked = not user.is_active
+                blocking_status = "Currently Blocked" if is_currently_blocked else "Previously Blocked (Unblocked)"
+                
+                blocked_profiles.append({
+                    'id': user.id,
+                    'email': user.email,
+                    'name': user.name,
+                    'is_active': user.is_active,
+                    'is_verified': user.is_verified,
+                    'date_joined': user.date_joined,
+                    'blocked_month': tracker.month,
+                    'completed_calls_count': tracker.completed_calls_count,
+                    'goal_completed_at': tracker.goal_completed_at,
+                    'monthly_goal_completed': tracker.monthly_goal_completed,
+                    'blocking_status': blocking_status,
+                    'is_current_month': tracker.month == current_month
+                })
+            
+            return JsonResponse({
+                'blocked_profiles': blocked_profiles,
+                'total_count': len(blocked_profiles)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching blocked profiles: {str(e)}")
+            return JsonResponse({'error': 'Failed to fetch blocked profiles'}, status=500)
 
 class RevokeAccessView(View):
     @method_decorator([admin_required, ratelimit(key='ip', rate='30/m')])
@@ -822,7 +874,6 @@ class DonationRequestCreateView(APIView):
                     requester=request.user,
                     donor=serializer.validated_data['donor'],
                     blood_group=serializer.validated_data['blood_group'],
-                    urgency_level=serializer.validated_data.get('urgency_level', 'medium'),
                     notes=serializer.validated_data.get('notes', '')
                 )
                 
@@ -939,226 +990,22 @@ class DonationRequestResponseView(APIView):
             )
 
 
-class CallLogCreateView(APIView):
-    permission_classes = [AllowAny]
-    
-    @method_decorator(ratelimit(key='ip', rate='20/m'))
-    def post(self, request):
-        try:
-            serializer = CallLogSerializer(data=request.data, context={'request': request})
-            if serializer.is_valid():
-                # Use service to log call with potential follow-up notifications
-                call_log = CallLogService.log_call_with_outcome(
-                    caller=request.user,
-                    recipient=serializer.validated_data['recipient'],
-                    donation_request=serializer.validated_data.get('donation_request'),
-                    duration=serializer.validated_data.get('duration', 0),
-                    outcome=serializer.validated_data.get('outcome', 'completed'),
-                    notes=serializer.validated_data.get('notes', '')
-                )
-                return Response(
-                    {
-                        "success": True,
-                        "message": "Call logged successfully",
-                        "call_log_id": call_log.id
-                    },
-                    status=status.HTTP_201_CREATED
-                )
-            return Response(
-                {"error": serializer.errors},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        except Exception as e:
-            logger.error(f"Error creating call log: {str(e)}")
-            return Response(
-                {"error": "An error occurred while creating call log"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
 
-class MessageListView(APIView):
-    permission_classes = [AllowAny]
-    
-    @method_decorator(ratelimit(key='ip', rate='30/m'))
-    def get(self, request):
-        try:
-            user = request.user
-            messages = Message.objects.filter(recipient=user).order_by('-created_at')
-            serializer = MessageSerializer(messages, many=True)
-            
-            return Response(
-                {
-                    "success": True,
-                    "messages": serializer.data
-                },
-                status=status.HTTP_200_OK
-            )
-        except Exception as e:
-            logger.error(f"Error fetching messages: {str(e)}")
-            return Response(
-                {"error": "An error occurred while fetching messages"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
 
-class MessageMarkReadView(APIView):
-    permission_classes = [AllowAny]
-    
-    @method_decorator(ratelimit(key='ip', rate='30/m'))
-    def post(self, request, message_id):
-        try:
-            message = Message.objects.get(id=message_id, recipient=request.user)
-            message.mark_as_read()
-            
-            return Response(
-                {
-                    "success": True,
-                    "message": "Message marked as read"
-                },
-                status=status.HTTP_200_OK
-            )
-        except Message.DoesNotExist:
-            return Response(
-                {"error": "Message not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
 
 
-class CallInitiateView(APIView):
-    permission_classes = [AllowAny]
-
-    @method_decorator(ratelimit(key='ip', rate='10/m'))
-    def post(self, request):
-        """Initiate a call and send messages to both parties."""
-        try:
-            donation_request_id = request.data.get('donation_request_id')
-            caller_email = request.data.get('caller_email')
-            receiver_email = request.data.get('receiver_email')
-
-            if not all([donation_request_id, caller_email, receiver_email]):
-                return Response(
-                    {"error": "donation_request_id, caller_email, and receiver_email are required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Get the donation request
-            try:
-                donation_request = DonationRequest.objects.get(id=donation_request_id)
-            except DonationRequest.DoesNotExist:
-                return Response(
-                    {"error": "Donation request not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            # Get caller and receiver users
-            try:
-                caller = User.objects.get(email=caller_email)
-                receiver = User.objects.get(email=receiver_email)
-            except User.DoesNotExist:
-                return Response(
-                    {"error": "Caller or receiver not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            # Initiate call with messages
-            call_log = CallLog.initiate_call_with_messages(
-                donation_request=donation_request,
-                caller=caller,
-                receiver=receiver
-            )
-
-            return Response(
-                {
-                    "message": "Call initiated successfully and messages sent to both parties",
-                    "call_id": call_log.id,
-                    "status": call_log.call_status
-                },
-                status=status.HTTP_201_CREATED,
-            )
-
-        except Exception as e:
-            logger.error(f"Error initiating call: {str(e)}")
-            return Response(
-                {"error": "Failed to initiate call"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
 
-class CallConfirmView(APIView):
-    permission_classes = [AllowAny]
 
-    @method_decorator(ratelimit(key='ip', rate='20/m'))
-    def post(self, request, call_id):
-        """Confirm call completion by caller or receiver."""
-        try:
-            user_email = request.data.get('user_email')
-            
-            if not user_email:
-                return Response(
-                    {"error": "user_email is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
 
-            # Get the call log
-            try:
-                call_log = CallLog.objects.get(id=call_id)
-            except CallLog.DoesNotExist:
-                return Response(
-                    {"error": "Call log not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
 
-            # Get the user
-            try:
-                user = User.objects.get(email=user_email)
-            except User.DoesNotExist:
-                return Response(
-                    {"error": "User not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
 
-            # Check if user is caller or receiver
-            if user == call_log.caller:
-                if call_log.caller_confirmed:
-                    return Response(
-                        {"message": "Call already confirmed by caller"},
-                        status=status.HTTP_200_OK,
-                    )
-                call_log.confirm_by_caller()
-                role = "caller"
-            elif user == call_log.receiver:
-                if call_log.receiver_confirmed:
-                    return Response(
-                        {"message": "Call already confirmed by receiver"},
-                        status=status.HTTP_200_OK,
-                    )
-                call_log.confirm_by_receiver()
-                role = "receiver"
-            else:
-                return Response(
-                    {"error": "User is not part of this call"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
 
-            response_data = {
-                "message": f"Call confirmed by {role}",
-                "caller_confirmed": call_log.caller_confirmed,
-                "receiver_confirmed": call_log.receiver_confirmed,
-                "both_confirmed": call_log.both_confirmed
-            }
 
-            if call_log.both_confirmed:
-                response_data["message"] = "Call completed! Both parties have confirmed. Count updated."
-                response_data["confirmed_at"] = call_log.confirmed_at
 
-            return Response(response_data, status=status.HTTP_200_OK)
 
-        except Exception as e:
-            logger.error(f"Error confirming call: {str(e)}")
-            return Response(
-                {"error": "Failed to confirm call"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
 
 class MonthlyTrackerView(APIView):
@@ -1207,9 +1054,287 @@ class MonthlyTrackerView(APIView):
                 {"error": "Failed to get monthly tracker"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+
+
+
+
+
+
+class DonorResponseView(APIView):
+    permission_classes = [AllowAny]
+
+    @method_decorator(ratelimit(key='ip', rate='10/m'))
+    def get(self, request, request_id, response):
+        """Handle donor Yes/No response via URL link."""
+        try:
+            # Validate response
+            if response not in ['yes', 'no']:
+                return Response(
+                    {"error": "Invalid response. Must be 'yes' or 'no'"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the donation request
+            try:
+                donation_request = DonationRequest.objects.get(id=request_id)
+            except DonationRequest.DoesNotExist:
+                return Response(
+                    {"error": "Donation request not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Update donor response
+            donor_agreed = response == 'yes'
+            donation_request.donor_response = donor_agreed
+            donation_request.update_status()
+            
+            # Check if both user and donor agreed
+            count_completed = False
+            if donation_request.user_response is True and donation_request.donor_response is True:
+                # Both agreed - complete one count
+                count_completed = True
+                donation_request.status = 'completed'
+                donation_request.save()
+                
+                # Update monthly tracker for the requester
+                from .models import MonthlyDonationTracker
+                tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(donation_request.requester)
+                goal_completed = tracker.increment_call_count()
+                
+            # Return JSON response
+            if count_completed:
+                message = f"🎉 Count Completed! Both you and {donation_request.requester.name} have agreed. One count has been completed for the requester. Please coordinate immediately for the blood donation process."
+                urgency_level = "high"
+            else:
+                message = f"✅ Response Recorded. You have responded '{response.upper()}' to the blood donation request. The requester has been notified."
+                urgency_level = "normal"
+            
+            return Response({
+                "success": True,
+                "message": message,
+                "response": response,
+                "count_completed": count_completed,
+                "urgency_level": urgency_level,
+                "requester_name": donation_request.requester.name if count_completed else None
+            }, status=status.HTTP_200_OK)
+
         except Exception as e:
-            logger.error(f"Error marking message as read: {str(e)}")
+            logger.error(f"Error processing donor response: {str(e)}")
             return Response(
-                {"error": "An error occurred while updating message"},
+                {"error": "An error occurred while processing your response"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class CallLogCreateView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='10/m'))
+    def post(self, request):
+        """Create a new call log entry."""
+        try:
+            serializer = CallLogSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                call_log = serializer.save()
+                return Response(
+                    {
+                        "success": True,
+                        "message": "Call log created successfully",
+                        "call_id": call_log.id,
+                        "call_log": CallLogSerializer(call_log).data
+                    },
+                    status=status.HTTP_201_CREATED
+                )
+            return Response(
+                {"error": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error creating call log: {str(e)}")
+            return Response(
+                {"error": "An error occurred while creating call log"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class SendDonorNotificationView(APIView):
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ratelimit(key='ip', rate='10/m'))
+    def post(self, request):
+        """Send confirmation email to donor after call ends."""
+        try:
+            from .email_config import EmailService
+            from django.utils import timezone
+            
+            call_log_id = request.data.get('call_log_id')
+            donor_agreed = request.data.get('donor_agreed')  # True/False from frontend modal
+            
+            if not call_log_id:
+                return Response(
+                    {"error": "call_log_id is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                call_log = CallLog.objects.get(id=call_log_id)
+            except CallLog.DoesNotExist:
+                return Response(
+                    {"error": "Call log not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Update call log with initial response from modal
+            if donor_agreed is not None:
+                call_log.donor_email_response = 'yes' if donor_agreed else 'no'
+                call_log.email_response_at = timezone.now()
+            
+            # Send confirmation email to donor
+            success, message = EmailService.send_donor_confirmation_email(
+                donor_user=call_log.receiver,
+                caller_user=call_log.caller,
+                call_log_id=call_log.id
+            )
+            
+            if success:
+                call_log.email_sent = True
+                call_log.email_sent_at = timezone.now()
+                call_log.save()
+                
+                logger.info(f"Confirmation email sent to donor {call_log.receiver.email} for call {call_log.id}")
+                
+                return Response(
+                    {
+                        "success": True,
+                        "message": "Confirmation email sent successfully"
+                    },
+                    status=status.HTTP_200_OK
+                )
+            else:
+                logger.error(f"Failed to send confirmation email: {message}")
+                return Response(
+                    {"error": f"Failed to send email: {message}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+        except Exception as e:
+            logger.error(f"Error sending donor notification: {str(e)}")
+            return Response(
+                {"error": "An error occurred while sending notification"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class DonorEmailConfirmationView(APIView):
+    permission_classes = [AllowAny]
+
+    @method_decorator(ratelimit(key='ip', rate='20/m'))
+    def get(self, request):
+        try:
+            call_log_id = request.GET.get('call_log_id')
+            response = request.GET.get('response')
+            
+            if not call_log_id or not response:
+                return Response(
+                    {"error": "Missing call_log_id or response parameter"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if response not in ['yes', 'no']:
+                return Response(
+                    {"error": "Invalid response. Must be 'yes' or 'no'"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get the call log
+            try:
+                call_log = CallLog.objects.get(id=call_log_id)
+            except CallLog.DoesNotExist:
+                return Response(
+                    {"error": "Call log not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Update call log with donor response
+            call_log.donor_response = response
+            call_log.save()
+            
+            count_completed = False
+            
+            # OPTION 3: Direct Count Increment - Always increment when donor says 'yes'
+            if response == 'yes':
+                    try:
+                        from .models import MonthlyDonationTracker
+                        tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(
+                            user=call_log.caller
+                        )
+                        goal_completed = tracker.increment_call_count()
+                        count_completed = True
+                        
+                        # Check if user has reached monthly limit
+                        if tracker.completed_calls_count >= 3:
+                            tracker.monthly_goal_completed = True
+                            tracker.goal_completed_at = timezone.now()
+                            
+                            # Block the user account
+                            call_log.caller.is_active = False
+                            call_log.caller.save()
+                            
+                            logger.info(f"User {call_log.caller.email} blocked after completing monthly goal")
+                            
+                        tracker.save()
+                        logger.info(f"Count incremented for requester {call_log.caller.email}. New count: {tracker.completed_calls_count}")
+                    except Exception as e:
+                        logger.error(f"Error incrementing count: {str(e)}")
+            
+            # Still try to update donation request if it exists (for completeness)
+            if response == 'yes':
+                try:
+                    donation_request = DonationRequest.objects.get(
+                        requester=call_log.requester,
+                        donor=call_log.receiver,
+                        user_response=True  # This was the problematic condition
+                    )
+                    
+                    if donation_request.status == 'pending':
+                        donation_request.donor_response = True
+                        donation_request.status = 'both_accepted'
+                        donation_request.save()
+                        logger.info(f"Updated donation request {donation_request.id} status to both_accepted")
+                    elif donation_request.status == 'user_accepted':
+                        donation_request.donor_response = True
+                        donation_request.status = 'completed'
+                        donation_request.save()
+                        logger.info(f"Updated donation request {donation_request.id} status to completed")
+                        
+                except DonationRequest.DoesNotExist:
+                    logger.warning(f"No matching donation request found for call {call_log.id} - but count was still incremented")
+            
+            # Prepare response message
+            if response == 'yes':
+                if count_completed:
+                    message = f"Thank you {call_log.receiver.name}! Your agreement to donate blood has been recorded. One count has been completed for the requester. We will contact you soon with donation details."
+                else:
+                    message = f"Thank you {call_log.receiver.name}! Your agreement to donate blood has been recorded. We will contact you soon with donation details."
+            else:
+                message = f"Thank you {call_log.receiver.name} for your response. We understand you cannot donate at this time."
+            
+            logger.info(f"Donor {call_log.receiver.email} responded '{response}' to call {call_log.id}. Count completed: {count_completed}")
+            
+            return Response({
+                "success": True,
+                "message": message,
+                "response": response,
+                "count_completed": count_completed,
+                "donor_name": call_log.receiver.name,
+                "call_id": call_log.id
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error processing email confirmation: {str(e)}")
+            return Response(
+                {"error": "An error occurred while processing confirmation"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

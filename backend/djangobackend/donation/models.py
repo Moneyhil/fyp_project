@@ -395,23 +395,12 @@ class DonationRequest(models.Model):
         blank=True,
         help_text='True if donor accepts, False if declines, None if no response'
     )
-    urgency_level = models.CharField(
-        _('Urgency Level'),
-        max_length=10,
-        choices=[
-            ('low', 'Low'),
-            ('medium', 'Medium'),
-            ('high', 'High'),
-            ('critical', 'Critical')
-        ],
-        default='medium',
-        help_text='Urgency level of the blood requirement'
-    )
+    # urgency_level field removed
     notes = models.TextField(
         _('Notes'),
         blank=True,
         null=True,
-        help_text='Additional notes or requirements'
+        help_text='Additional notes or comments about the donation request'
     )
     created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
@@ -452,30 +441,26 @@ class DonationRequest(models.Model):
         self.save()
 
 
+
+
+
 class CallLog(models.Model):
     """
-    Model to track phone calls made between users and donors.
+    Model to track call logs between users and donors.
     """
     CALL_STATUS_CHOICES = [
         ('initiated', 'Initiated'),
-        ('connected', 'Connected'),
+        ('answered', 'Answered'),
         ('completed', 'Completed'),
-        ('failed', 'Failed'),
-        ('no_answer', 'No Answer'),
-        ('busy', 'Busy'),
+        ('missed', 'Missed'),
+        ('declined', 'Declined'),
     ]
     
-    donation_request = models.ForeignKey(
-        DonationRequest,
-        on_delete=models.CASCADE,
-        related_name='call_logs',
-        help_text='Related donation request'
-    )
     caller = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name='calls_made',
-        help_text='User who made the call'
+        help_text='User who initiated the call'
     )
     receiver = models.ForeignKey(
         User,
@@ -483,310 +468,92 @@ class CallLog(models.Model):
         related_name='calls_received',
         help_text='User who received the call'
     )
+    # Remove this field since it was already removed in migration 0009
+    # donation_request = models.ForeignKey(
+    #     'DonationRequest',
+    #     on_delete=models.CASCADE,
+    #     related_name='call_logs',
+    #     help_text='The donation request this call is related to'
+    # )
     call_status = models.CharField(
         _('Call Status'),
-        max_length=15,
+        max_length=20,
         choices=CALL_STATUS_CHOICES,
         default='initiated',
-        help_text='Status of the phone call'
+        help_text='Current status of the call'
     )
     duration_seconds = models.PositiveIntegerField(
         _('Duration (seconds)'),
         null=True,
         blank=True,
-        help_text='Call duration in seconds'
-    )
-    started_at = models.DateTimeField(_('Started At'), auto_now_add=True)
-    ended_at = models.DateTimeField(
-        _('Ended At'),
-        null=True,
-        blank=True,
-        help_text='When the call ended'
-    )
-    notes = models.TextField(
-        _('Call Notes'),
-        blank=True,
-        null=True,
-        help_text='Notes about the call'
+        help_text='Duration of the call in seconds'
     )
     caller_confirmed = models.BooleanField(
         _('Caller Confirmed'),
         default=False,
-        help_text='Whether the caller confirmed the call completion'
+        help_text='Whether caller confirmed the call completion'
     )
     receiver_confirmed = models.BooleanField(
         _('Receiver Confirmed'),
         default=False,
-        help_text='Whether the receiver confirmed the call completion'
+        help_text='Whether receiver confirmed the call completion'
     )
     both_confirmed = models.BooleanField(
         _('Both Confirmed'),
         default=False,
-        help_text='Whether both parties have confirmed the call completion'
+        help_text='Whether both parties confirmed the call'
     )
-    confirmed_at = models.DateTimeField(
-        _('Confirmed At'),
-        null=True,
-        blank=True,
-        help_text='When both parties confirmed the call'
-    )
-
-    class Meta:
-        verbose_name = _('Call Log')
-        verbose_name_plural = _('Call Logs')
-        ordering = ['-started_at']
-        indexes = [
-            models.Index(fields=['donation_request', 'call_status']),
-            models.Index(fields=['caller', 'started_at']),
-        ]
-    
-    def __str__(self):
-        return f"Call from {self.caller.email} to {self.receiver.email} - {self.call_status}"
-
-    def confirm_by_caller(self):
-        """Mark call as confirmed by the caller."""
-        self.caller_confirmed = True
-        self._check_both_confirmed()
-        self.save()
-
-    def confirm_by_receiver(self):
-        """Mark call as confirmed by the receiver."""
-        self.receiver_confirmed = True
-        self._check_both_confirmed()
-        self.save()
-
-    def _check_both_confirmed(self):
-        """Check if both parties have confirmed and update monthly tracker."""
-        if self.caller_confirmed and self.receiver_confirmed and not self.both_confirmed:
-            self.both_confirmed = True
-            self.confirmed_at = timezone.now()
-            
-            # Update monthly tracker for both users
-            self._update_monthly_tracker(self.caller)
-            self._update_monthly_tracker(self.receiver)
-
-    def _update_monthly_tracker(self, user):
-        """Update the monthly donation tracker for a user."""
-        tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(user)
-        goal_completed = tracker.increment_call_count()
-        
-        # Send congratulations message if monthly goal is completed
-        if goal_completed:
-            self._send_monthly_goal_message(user, tracker)
-
-    def _send_monthly_goal_message(self, user, tracker):
-        """Send congratulations message for completing monthly goal."""
-        from .models import Message  # Avoid circular import
-        
-        subject = "Monthly Donation Goal Completed!"
-        content = f"Congratulations {user.name}! You have successfully completed your monthly donation goal of 3 confirmed calls in {tracker.month.strftime('%B %Y')}. Thank you for your dedication to helping others!"
-        
-        Message.objects.create(
-            sender=user,  # System message
-            recipient=user,
-            message_type='notification',
-            subject=subject,
-            content=content,
-            donation_request=self.donation_request
-        )
-
-    @classmethod
-    def initiate_call_with_messages(cls, donation_request, caller, receiver):
-        """Initiate a call and send messages to both parties."""
-        # Create the call log
-        call_log = cls.objects.create(
-            donation_request=donation_request,
-            caller=caller,
-            receiver=receiver,
-            call_status='initiated'
-        )
-        
-        # Send message to caller
-        cls._send_call_initiation_message(
-            sender=caller,
-            recipient=caller,
-            donation_request=donation_request,
-            is_caller=True
-        )
-        
-        # Send message to receiver
-        cls._send_call_initiation_message(
-            sender=caller,
-            recipient=receiver,
-            donation_request=donation_request,
-            is_caller=False
-        )
-        
-        return call_log
-
-    @classmethod
-    def _send_call_initiation_message(cls, sender, recipient, donation_request, is_caller):
-        """Send call initiation message to a user."""
-        from .models import Message  # Avoid circular import
-        
-        if is_caller:
-            subject = "Call Initiated - Blood Donation Request"
-            content = f"You have initiated a call for blood donation request (Blood Group: {donation_request.blood_group}). Please confirm once the call is completed successfully."
-        else:
-            subject = "Incoming Call - Blood Donation Request"
-            content = f"You have received a call regarding a blood donation request (Blood Group: {donation_request.blood_group}) from {sender.name}. Please confirm once the call is completed successfully."
-        
-        Message.objects.create(
-            sender=sender,
-            recipient=recipient,
-            message_type='notification',
-            subject=subject,
-            content=content,
-            donation_request=donation_request
-        )
-
-
-class Message(models.Model):
-    """
-    Model for alert messaging system between users and donors.
-    """
-    MESSAGE_TYPE_CHOICES = [
-        ('alert', 'Alert'),
-        ('confirmation', 'Confirmation'),
-        ('reminder', 'Reminder'),
-        ('notification', 'Notification'),
-    ]
-    
-    DELIVERY_STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('sent', 'Sent'),
-        ('delivered', 'Delivered'),
-        ('failed', 'Failed'),
-        ('read', 'Read'),
-    ]
-    
-    donation_request = models.ForeignKey(
-        DonationRequest,
-        on_delete=models.CASCADE,
-        related_name='messages',
-        null=True,
-        blank=True,
-        help_text='Related donation request'
-    )
-    sender = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='messages_sent',
-        help_text='User who sent the message'
-    )
-    recipient = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='messages_received',
-        help_text='User who received the message'
-    )
-    message_type = models.CharField(
-        _('Message Type'),
-        max_length=15,
-        choices=MESSAGE_TYPE_CHOICES,
-        default='notification',
-        help_text='Type of message'
-    )
-    subject = models.CharField(
-        _('Subject'),
-        max_length=200,
-        help_text='Message subject'
-    )
-    content = models.TextField(
-        _('Content'),
-        help_text='Message content'
-    )
-    delivery_status = models.CharField(
-        _('Delivery Status'),
-        max_length=15,
-        choices=DELIVERY_STATUS_CHOICES,
-        default='pending',
-        help_text='Message delivery status'
-    )
-    phone_number = models.CharField(
-        _('Phone Number'),
-        max_length=15,
-        null=True,
-        blank=True,
-        help_text='Phone number for SMS delivery'
-    )
-    is_sms = models.BooleanField(
-        _('Is SMS'),
-        default=False,
-        help_text='Whether this message should be sent as SMS'
-    )
-    sms_sent = models.BooleanField(
-        _('SMS Sent'),
-        default=False,
-        help_text='Whether SMS has been sent'
-    )
-    sms_sent_at = models.DateTimeField(
-        _('SMS Sent At'),
-        null=True,
-        blank=True,
-        help_text='When the SMS was sent'
-    )
+    # Email confirmation fields
     email_sent = models.BooleanField(
         _('Email Sent'),
         default=False,
-        help_text='Whether email has been sent'
+        help_text='Whether confirmation email was sent to donor'
     )
     email_sent_at = models.DateTimeField(
         _('Email Sent At'),
         null=True,
         blank=True,
-        help_text='When the email was sent'
+        help_text='When the confirmation email was sent'
     )
-    sent_at = models.DateTimeField(
-        _('Sent At'),
+    donor_email_response = models.CharField(
+        _('Donor Email Response'),
+        max_length=10,
+        choices=[
+            ('pending', 'Pending'),
+            ('yes', 'Yes - Agreed to Donate'),
+            ('no', 'No - Declined to Donate'),
+        ],
+        default='pending',
+        help_text='Donor response from email confirmation'
+    )
+    email_response_at = models.DateTimeField(
+        _('Email Response At'),
         null=True,
         blank=True,
-        help_text='When the message was sent'
-    )
-    delivered_at = models.DateTimeField(
-        _('Delivered At'),
-        null=True,
-        blank=True,
-        help_text='When the message was delivered'
-    )
-    read_at = models.DateTimeField(
-        _('Read At'),
-        null=True,
-        blank=True,
-        help_text='When the message was read'
+        help_text='When donor responded via email'
     )
     created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
     
     class Meta:
-        verbose_name = _('Message')
-        verbose_name_plural = _('Messages')
+        verbose_name = _('Call Log')
+        verbose_name_plural = _('Call Logs')
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['recipient', 'delivery_status']),
-            models.Index(fields=['donation_request', 'message_type']),
-            models.Index(fields=['sender', 'created_at']),
+            models.Index(fields=['caller', 'call_status']),
+            models.Index(fields=['receiver', 'call_status']),
+            models.Index(fields=['created_at']),
         ]
     
     def __str__(self):
-        return f"Message from {self.sender.name} to {self.recipient.name}: {self.subject}"
+        return f"Call from {self.caller.name} to {self.receiver.name} - {self.call_status}"
     
-    def mark_as_sent(self):
-        """Mark message as sent."""
-        self.delivery_status = 'sent'
-        self.sent_at = timezone.now()
-        self.save()
-    
-    def mark_as_delivered(self):
-        """Mark message as delivered."""
-        self.delivery_status = 'delivered'
-        self.delivered_at = timezone.now()
-        self.save()
-    
-    def mark_as_read(self):
-        """Mark message as read."""
-        self.delivery_status = 'read'
-        self.read_at = timezone.now()
-        self.save()
+    def mark_both_confirmed(self):
+        """Mark call as confirmed by both parties."""
+        if self.caller_confirmed and self.receiver_confirmed:
+            self.both_confirmed = True
+            self.call_status = 'completed'
+            self.save()
 
 
 class MonthlyDonationTracker(models.Model):
@@ -847,9 +614,23 @@ class MonthlyDonationTracker(models.Model):
 
     def reset_for_new_month(self):
         """Reset the tracker for a new month."""
+        # Store previous blocked status for email notification
+        was_blocked = self.monthly_goal_completed and not self.user.is_active
+        
+        # Reset monthly tracking fields
         self.completed_calls_count = 0
         self.monthly_goal_completed = False
         self.goal_completed_at = None
+        
+        # Unblock the user for the new month if they were blocked
+        if not self.user.is_active:
+            self.user.is_active = True
+            self.user.save()
+            
+            # Send unblock notification email
+            if was_blocked:
+                self._send_unblock_email_notification()
+        
         self.save()
         return self
     

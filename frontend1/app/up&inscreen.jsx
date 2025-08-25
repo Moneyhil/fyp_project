@@ -17,7 +17,6 @@ export default function mainscreen(){
             const userInfo = await AsyncStorage.getItem('userInfo');
             
             if (authToken && userInfo) {
-                // User is already logged in, redirect to appropriate screen
                 const user = JSON.parse(userInfo);
                 if (user.is_staff) {
                     router.replace('/admindashboard');
@@ -34,7 +33,7 @@ export default function mainscreen(){
     };
 
     if (isCheckingAuth) {
-        return null; // Show nothing while checking
+        return null; 
     }
   return (
     <View style={styles.container}>

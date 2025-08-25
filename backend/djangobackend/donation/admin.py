@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from django.db.models import Q
-from .models import User, Profile, Admin, MonthlyDonationTracker, CallLog, DonationRequest, Message
+from .models import User, Profile, Admin, MonthlyDonationTracker, CallLog, DonationRequest
 
 class CustomUserAdmin(UserAdmin):
     list_display = ('email', 'name', 'is_staff', 'user_status', 'date_joined', 'is_verified')  # Use date_joined instead of created_at
@@ -344,25 +344,20 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
         return False
 
 class CallLogAdmin(admin.ModelAdmin):
-    list_display = ('donation_request', 'caller', 'receiver', 'call_status', 'both_confirmed', 'started_at', 'duration_seconds')
-    list_filter = ('call_status', 'both_confirmed', 'started_at')
-    search_fields = ('caller__email', 'receiver__email', 'donation_request__id')
-    ordering = ('-started_at',)
-    readonly_fields = ('started_at', 'confirmed_at')
+    list_display = ('caller', 'receiver', 'call_status', 'both_confirmed', 'created_at', 'duration_seconds')
+    list_filter = ('call_status', 'both_confirmed', 'created_at')
+    search_fields = ('caller__email', 'receiver__email')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at')
 
 class DonationRequestAdmin(admin.ModelAdmin):
-    list_display = ('requester', 'donor', 'blood_group', 'status', 'urgency_level', 'created_at')
-    list_filter = ('status', 'blood_group', 'urgency_level', 'created_at')
+    list_display = ('requester', 'donor', 'blood_group', 'status', 'created_at')
+    list_filter = ('status', 'blood_group', 'created_at')
     search_fields = ('requester__email', 'donor__email')
     ordering = ('-created_at',)
     readonly_fields = ('created_at', 'updated_at')
 
-class MessageAdmin(admin.ModelAdmin):
-    list_display = ('sender', 'recipient', 'subject', 'message_type', 'delivery_status', 'created_at')
-    list_filter = ('message_type', 'delivery_status', 'is_sms', 'email_sent', 'sms_sent')
-    search_fields = ('sender__email', 'recipient__email', 'subject')
-    ordering = ('-created_at',)
-    readonly_fields = ('created_at', 'sent_at', 'delivered_at', 'read_at')
+
 
 # Register models with admin
 admin.site.register(User, CustomUserAdmin)
@@ -371,7 +366,6 @@ admin.site.register(Admin, AdminAdmin)
 admin.site.register(MonthlyDonationTracker, MonthlyDonationTrackerAdmin)
 admin.site.register(CallLog, CallLogAdmin)
 admin.site.register(DonationRequest, DonationRequestAdmin)
-admin.site.register(Message, MessageAdmin)
 
 # Create a proxy model for blocked profiles to have a separate admin interface
 class BlockedProfiles(MonthlyDonationTracker):

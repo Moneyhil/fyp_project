@@ -46,7 +46,7 @@ export default function OTPVerification() {
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 500,
-      useNativeDriver: true,
+      useNativeDriver: false, // Changed from true to false
     }).start();
 
     // Start countdown for resend
@@ -127,7 +127,7 @@ export default function OTPVerification() {
         
         // Store user data and token if available
         if (response.data.user) {
-          await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+          await AsyncStorage.setItem('userInfo', JSON.stringify(response.data.user));
         }
         if (response.data.token) {
           await AsyncStorage.setItem('authToken', response.data.token);

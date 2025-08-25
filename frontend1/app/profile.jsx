@@ -112,7 +112,7 @@ export default function ProfileScreen() {
 
     try {
       // Get user email from storage
-      const userString = await AsyncStorage.getItem("userData");
+      const userString = await AsyncStorage.getItem("userInfo");
       if (!userString) {
         Alert.alert("Error", "User not found. Please login again.");
         router.replace("/signin");

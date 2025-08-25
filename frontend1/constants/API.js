@@ -1,8 +1,7 @@
-// frontend1/constants/API.js
 import axios from 'axios';
 
  const api = axios.create({
-  baseURL: 'http://192.168.100.16:8000', // Django server computer IP address
+  baseURL: 'http://192.168.100.16:8000',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -22,17 +21,12 @@ export const respondToDonationRequest = (requestId, data) => {
 };
 
 // Call Log APIs
-export const createCallLog = (data) => {
-  return api.post('/donation/call-logs/create/', data);
-};
-
-// Message APIs
-export const getMessages = () => {
-  return api.get('/donation/messages/');
-};
-
-export const markMessageAsRead = (messageId) => {
-  return api.post(`/donation/messages/${messageId}/read/`);
+export const createCallLog = (data, authToken) => {
+  return api.post('/donation/call-logs/create/', data, {
+    headers: {
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
 };
 
 // Profile APIs
@@ -47,6 +41,11 @@ export const getProfile = (email) => {
 // Monthly Donation Tracker API
 export const getMonthlyTracker = (userEmail) => {
   return api.get(`/donation/monthly-tracker/?user_email=${userEmail}`);
+};
+
+// Notification APIs
+export const sendDonorNotification = (data) => {
+  return api.post('/donation/messages/send-donor-notification/', data);
 };
 
 export default api;

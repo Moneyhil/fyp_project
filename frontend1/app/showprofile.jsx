@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import api, { createDonationRequest, createCallLog, respondToDonationRequest } from '../constants/API';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api, { createDonationRequest, createCallLog, respondToDonationRequest, sendDonorNotification } from '../constants/API';
 
 export default function ShowProfileScreen() {
   const { donorData } = useLocalSearchParams();
@@ -20,16 +21,39 @@ export default function ShowProfileScreen() {
   const [showPostCallModal, setShowPostCallModal] = useState(false);
   const [donationRequestId, setDonationRequestId] = useState(null);
   const [callStartTime, setCallStartTime] = useState(null);
-  const [callCounter, setCallCounter] = useState(0);
-  const [isAccountBlocked, setIsAccountBlocked] = useState(false);
+  const [userEmail, setUserEmail] = useState(null);
+  const [callId, setCallId] = useState(null);
+  const [isCallInProgress, setIsCallInProgress] = useState(false);
+
+  useEffect(() => {
+    const getUserEmail = async () => {
+      try {
+        const email = await AsyncStorage.getItem('userEmail');
+        setUserEmail(email);
+      } catch (error) {
+        console.error('Error getting user email:', error);
+      }
+    };
+    getUserEmail();
+  }, []);
 
   const handleCreateDonationRequest = async () => {
     try {
-      const response = await createDonationRequest({
-        donor_id: donor.id,
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) {
+        Alert.alert('Error', 'Authentication required. Please log in again.');
+        return null;
+      }
+      
+      const response = await api.post('/donation/donation-requests/create/', {
+        donor: donor.user,
         blood_group: donor.blood_group,
-        urgency_level: 'medium',
+      
         notes: `Blood donation request for ${donor.blood_group} blood group`
+      }, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
       });
       
       if (response && response.data && response.data.success) {
@@ -46,53 +70,80 @@ export default function ShowProfileScreen() {
     return null;
   };
 
-  const logCall = async (duration, outcome) => {
+  const logCall = async () => {
     try {
-      await createCallLog({
-        donor_id: donor.id,
-        duration: duration,
-        outcome: outcome,
-        notes: `Call to ${donor.full_name} regarding blood donation`
-      });
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) {
+        console.error('No auth token found');
+        return null;
+      }
+
+      const callData = {
+        receiver: donor.user, // Fixed: use donor.user instead of receiver_email
+        call_start_time: callStartTime,
+        call_end_time: new Date().toISOString(),
+      };
+
+      const response = await createCallLog(callData, authToken);
+      if (response && response.data && response.data.call_log && response.data.call_log.id) {
+        const logId = response.data.call_log.id;
+        setCallId(logId);
+        console.log('Call logged successfully');
+        return logId; // Return the call log ID
+      }
     } catch (error) {
       console.error('Error logging call:', error);
     }
+    return null;
   };
 
   const handleUserResponse = async (agreed) => {
     try {
+      // First log the call and get the call log ID
+      const loggedCallId = await logCall();
+      
       if (donationRequestId) {
-        await respondToDonationRequest(donationRequestId, {
-          response: agreed,
-          notes: agreed ? 'User confirmed need for blood donation' : 'User declined blood donation request'
-        });
-        
-        // Increment counter after completing the call
-        const newCounter = callCounter + 1;
-        setCallCounter(newCounter);
-        
-        // Check if account should be blocked after 3 calls
-        if (newCounter >= 3) {
-          setIsAccountBlocked(true);
-          Alert.alert(
-            'Account Blocked',
-            'You have reached the maximum limit of 3 donation requests. Your account has been temporarily blocked.',
-            [{ text: 'OK', onPress: () => router.back() }]
-          );
-          setShowPostCallModal(false);
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (!authToken) {
+          Alert.alert('Error', 'Authentication required. Please log in again.');
           return;
         }
         
+        await api.post(`/donation/donation-requests/${donationRequestId}/respond/`, {
+          response: agreed,
+          notes: agreed ? 'User confirmed need for blood donation' : 'User declined blood donation request'
+        }, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
         if (agreed) {
-          Alert.alert(
-            'Request Sent',
-            `A donation request has been sent to ${donor.full_name}. They will receive a message asking if they agree to donate blood to you.\n\nCalls made: ${newCounter}/3`,
-            [{ text: 'OK', onPress: () => router.back() }]
-          );
+          // Send notification to donor about their agreement
+          try {
+            await sendDonorNotification({
+              call_log_id: loggedCallId, // Use the returned call log ID
+              donor_agreed: true // Changed from agreed_to_donate to donor_agreed
+            });
+            
+            Alert.alert(
+              'Success!',
+              `${donor.full_name} has been notified about their agreement to donate blood to you. They will also receive an email confirmation request.`,
+              [{ text: 'OK', onPress: () => router.back() }]
+            );
+            
+          } catch (notificationError) {
+            console.error('Error sending notification:', notificationError);
+            Alert.alert(
+              'Partial Success',
+              `Your response was recorded, but we couldn't send a notification to ${donor.full_name}. Please contact them directly.`,
+              [{ text: 'OK', onPress: () => router.back() }]
+            );
+          }
         } else {
           Alert.alert(
             'Request Cancelled',
-            `The donation request has been cancelled.\n\nCalls made: ${newCounter}/3`,
+            'The donation request has been cancelled.',
             [{ text: 'OK', onPress: () => router.back() }]
           );
         }
@@ -104,22 +155,14 @@ export default function ShowProfileScreen() {
     setShowPostCallModal(false);
   };
 
+
+
   const handleCall = async () => {
-    // Check if account is blocked
-    if (isAccountBlocked) {
-      Alert.alert(
-        'Account Blocked',
-        'Your account has been blocked due to reaching the maximum limit of 3 donation requests. Please contact support if you need assistance.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    
     const phoneNumber = donor.contact_number;
     if (phoneNumber) {
       Alert.alert(
         'Make a Call',
-        `Do you want to call ${donor.full_name} at ${phoneNumber}?\n\nCalls made: ${callCounter}/3`,
+        `Do you want to call ${donor.full_name} at ${phoneNumber}?`,
         [
           {
             text: 'Cancel',
@@ -132,14 +175,10 @@ export default function ShowProfileScreen() {
               const requestId = await handleCreateDonationRequest();
               setDonationRequestId(requestId);
               setCallStartTime(new Date());
+              setIsCallInProgress(true);
               
               // Make the call
               Linking.openURL(`tel:${phoneNumber}`);
-              
-              // Show post-call modal after a delay (simulating call end)
-              setTimeout(() => {
-                setShowPostCallModal(true);
-              }, 3000); // 3 second delay to simulate call
             },
           },
         ]
@@ -278,37 +317,7 @@ export default function ShowProfileScreen() {
           </View>
         </View>
 
-        {/* Counter Card */}
-        <View style={styles.counterCard}>
-          <View style={styles.counterHeader}>
-            <Ionicons name="stats-chart" size={24} color={isAccountBlocked ? "#d32f2f" : "#d40000"} />
-            <Text style={styles.counterTitle}>Donation Request Counter</Text>
-          </View>
-          
-          <View style={styles.counterContent}>
-            <View style={styles.counterDisplay}>
-              <Text style={styles.counterNumber}>{callCounter}</Text>
-              <Text style={styles.counterDivider}>/</Text>
-              <Text style={styles.counterLimit}>3</Text>
-            </View>
-            
-            <Text style={[styles.counterStatus, isAccountBlocked && styles.blockedStatus]}>
-              {isAccountBlocked ? "Account Blocked" : "Requests Available"}
-            </Text>
-            
-            {!isAccountBlocked && (
-              <Text style={styles.counterSubtext}>
-                {3 - callCounter} request{3 - callCounter !== 1 ? 's' : ''} remaining
-              </Text>
-            )}
-            
-            {isAccountBlocked && (
-              <Text style={styles.blockedMessage}>
-                Contact support to restore access
-              </Text>
-            )}
-          </View>
-        </View>
+
 
         {/* Emergency Note */}
         <View style={styles.emergencyNote}>
@@ -321,10 +330,23 @@ export default function ShowProfileScreen() {
 
       {/* Action Button */}
       <View style={styles.actionButtons}>
-        <TouchableOpacity style={styles.callButton} onPress={handleCall}>
-          <Ionicons name="call" size={20} color="#fff" />
-          <Text style={styles.buttonText}>Call Now</Text>
-        </TouchableOpacity>
+        {!isCallInProgress ? (
+          <TouchableOpacity style={styles.callButton} onPress={handleCall}>
+            <Ionicons name="call" size={20} color="#fff" />
+            <Text style={styles.buttonText}>Call Now</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.callButton, { backgroundColor: '#28a745' }]} 
+            onPress={() => {
+              setIsCallInProgress(false);
+              setShowPostCallModal(true);
+            }}
+          >
+            <Ionicons name="call-outline" size={20} color="#fff" />
+            <Text style={styles.buttonText}>End Call</Text>
+          </TouchableOpacity>
+        )}
       </View>
       
       <PostCallModal />
@@ -518,76 +540,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  blockedText: {
-    color: '#d32f2f',
-    fontWeight: 'bold',
-  },
-  counterCard: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    marginBottom: 20,
-  },
-  counterHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  counterTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginLeft: 10,
-  },
-  counterContent: {
-    alignItems: 'center',
-  },
-  counterDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  counterNumber: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#d40000',
-  },
-  counterDivider: {
-    fontSize: 24,
-    color: '#666',
-    marginHorizontal: 8,
-  },
-  counterLimit: {
-    fontSize: 24,
-    color: '#666',
-    fontWeight: '500',
-  },
-  counterStatus: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4caf50',
-    marginBottom: 5,
-  },
-  blockedStatus: {
-    color: '#d32f2f',
-  },
-  counterSubtext: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-  },
-  blockedMessage: {
-    fontSize: 14,
-    color: '#d32f2f',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
+
+
 });

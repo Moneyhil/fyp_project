@@ -25,7 +25,7 @@ export default function HomeScreen() {
       await AsyncStorage.multiRemove([
         'authToken',
         'refreshToken', 
-        'user',
+        'userInfo',
         'pendingVerificationEmail'
       ]);
       

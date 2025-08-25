@@ -37,7 +37,7 @@ export default function UsersProfileScreen() {
       setError(null);
       
       // Debug: Check what's in AsyncStorage
-      const userString = await AsyncStorage.getItem('userData');
+      const userString = await AsyncStorage.getItem('userInfo');
       const authToken = await AsyncStorage.getItem('authToken');
       
       console.log('Debug - User data:', userString);

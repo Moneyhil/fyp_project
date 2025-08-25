@@ -18,16 +18,15 @@ export default function BlockedProfiles() {
   const loadBlockedUsers = async () => {
     try {
       const token = await AsyncStorage.getItem("authToken");
-      const response = await api.get("/donation/admin/users/", {
+      const response = await api.get("/donation/admin/blocked-profiles/", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-
+  
       if (response.status === 200) {
-        // Filter only blocked users (is_active = false)
-        const blocked = response.data.users.filter(user => !user.is_active);
-        setBlockedUsers(blocked);
+        // Use the blocked_profiles data directly from the dedicated endpoint
+        setBlockedUsers(response.data.blocked_profiles);
       }
     } catch (error) {
       console.error("Load blocked users error:", error);

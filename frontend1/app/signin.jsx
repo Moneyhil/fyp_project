@@ -192,8 +192,8 @@ export default function Login() {
 
         <Text style={styles.text}>
           Don't have an account?{" "}
-          <Text style={styles.Link} onPress={() => router.push("/signup")}>
-            Sign Up
+          <Text style={styles.Link} onPress={() => router.push("/up&inscreen")}>
+            Go-back
           </Text>
         </Text>
         </View>

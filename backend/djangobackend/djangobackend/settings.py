@@ -150,6 +150,10 @@ CACHES = {
 # Rate limiting
 RATELIMIT_ENABLE = True
 
+# URL Configuration for email confirmations
+BASE_URL = 'http://192.168.100.16:8000'
+FRONTEND_BASE_URL = 'http://192.168.100.16:8081'
+
 # JWT Configuration for persistent login
 from datetime import timedelta
 

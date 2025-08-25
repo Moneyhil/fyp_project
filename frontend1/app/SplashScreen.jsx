@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
 const BloodDropLogo = () => (
   <Svg width="150" height="150" viewBox="0 0 150 150">
@@ -22,13 +22,12 @@ export default function SplashScreen() {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 1000,
-        useNativeDriver: true,
+        useNativeDriver: false, // Changed from true to false
       }),
-      Animated.spring(scaleAnim, {
+      Animated.timing(scaleAnim, {
         toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
+        duration: 1000,
+        useNativeDriver: false, // Changed from true to false
       }),
     ]).start();
   }, []);
@@ -44,13 +43,11 @@ export default function SplashScreen() {
           }
         ]}
       >
-        <Animated.View style={[styles.logo, { opacity: fadeAnim }]}>
+        <View style={styles.logo}>
           <BloodDropLogo />
-        </Animated.View>
+        </View>
         <Text style={styles.appName}>Blood Donation App</Text>
         <Text style={styles.tagline}>Saving Lives, One Drop at a Time</Text>
-        
-
       </Animated.View>
     </View>
   );
@@ -86,7 +83,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#718096', // Gray text for tagline
     textAlign: 'center',
-    marginBottom: 40,
     fontStyle: 'italic',
   },
 

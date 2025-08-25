@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Profile, DonationRequest, CallLog, Message
+from .models import User, Profile, DonationRequest, CallLog
 import re
 from django.core.mail import send_mail
 from django.conf import settings
@@ -186,7 +186,7 @@ class DonationRequestSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'requester', 'donor', 'requester_name', 'donor_name',
             'requester_email', 'donor_email', 'blood_group', 'status',
-            'user_response', 'donor_response', 'urgency_level', 'notes',
+            'user_response', 'donor_response', 'notes',  # Remove 'urgency_level'
             'created_at', 'updated_at', 'expires_at'
         ]
         extra_kwargs = {
@@ -205,18 +205,19 @@ class DonationRequestSerializer(serializers.ModelSerializer):
 class CallLogSerializer(serializers.ModelSerializer):
     caller_name = serializers.CharField(source='caller.name', read_only=True)
     receiver_name = serializers.CharField(source='receiver.name', read_only=True)
-    donation_request_id = serializers.IntegerField(source='donation_request.id', read_only=True)
     
     class Meta:
         model = CallLog
         fields = [
-            'id', 'donation_request', 'donation_request_id', 'caller', 'receiver',
+            'id', 'caller', 'receiver',
             'caller_name', 'receiver_name', 'call_status', 'duration_seconds',
-            'started_at', 'ended_at', 'notes'
+            'created_at', 'updated_at', 'caller_confirmed', 'receiver_confirmed',
+            'both_confirmed', 'email_sent', 'donor_email_response'
         ]
         extra_kwargs = {
             'caller': {'read_only': True},
-            'started_at': {'read_only': True}
+            'created_at': {'read_only': True},
+            'updated_at': {'read_only': True}
         }
     
     def create(self, validated_data):
@@ -225,32 +226,7 @@ class CallLogSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class MessageSerializer(serializers.ModelSerializer):
-    sender_name = serializers.CharField(source='sender.name', read_only=True)
-    recipient_name = serializers.CharField(source='recipient.name', read_only=True)
-    donation_request_id = serializers.IntegerField(source='donation_request.id', read_only=True)
-    
-    class Meta:
-        model = Message
-        fields = [
-            'id', 'donation_request', 'donation_request_id', 'sender', 'recipient',
-            'sender_name', 'recipient_name', 'message_type', 'subject', 'content',
-            'delivery_status', 'phone_number', 'is_sms', 'sent_at', 'delivered_at',
-            'read_at', 'created_at'
-        ]
-        extra_kwargs = {
-            'sender': {'read_only': True},
-            'created_at': {'read_only': True},
-            'delivery_status': {'read_only': True},
-            'sent_at': {'read_only': True},
-            'delivered_at': {'read_only': True},
-            'read_at': {'read_only': True}
-        }
-    
-    def create(self, validated_data):
-        # Set sender to current user
-        validated_data['sender'] = self.context['request'].user
-        return super().create(validated_data)
+
 
 
 class DonationRequestResponseSerializer(serializers.Serializer):

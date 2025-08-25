@@ -19,6 +19,7 @@ urlpatterns = [
     path("admin/users/<int:pk>/delete/", views.UserDeleteView.as_view(), name="user-delete"),
     path("admin/users/<int:pk>/block/", views.BlockUnblockUserView.as_view(), name="user-block-unblock"),
     path("admin/users/<int:pk>/revoke/", views.RevokeAccessView.as_view(), name="user-revoke"),
+    path('admin/blocked-profiles/', views.BlockedProfilesView.as_view(), name='blocked_profiles'),
 
 
     path('registration/create/', views.UserCreate.as_view(), name='registration-create'),
@@ -49,16 +50,15 @@ urlpatterns = [
     path('donation-requests/', views.DonationRequestListView.as_view(), name='donation-request-list'),
     path('donation-requests/<int:request_id>/respond/', views.DonationRequestResponseView.as_view(), name='donation-request-respond'),
     
-    # Call logs
-    path('call-logs/create/', views.CallLogCreateView.as_view(), name='call-log-create'),
-    path('calls/initiate/', views.CallInitiateView.as_view(), name='call-initiate'),
-    path('calls/<int:call_id>/confirm/', views.CallConfirmView.as_view(), name='call-confirm'),
-    
     # Monthly tracking
     path('monthly-tracker/', views.MonthlyTrackerView.as_view(), name='monthly-tracker'),
     
-    # Messages
-    path('messages/', views.MessageListView.as_view(), name='message-list'),
-    path('messages/<int:message_id>/read/', views.MessageMarkReadView.as_view(), name='message-mark-read'),
+    # Donor Response
+    path('donor-response/<int:request_id>/<str:response>/', views.DonorResponseView.as_view(), name='donor-response'),
+    
+    # Call logs and notifications
+    path('call-logs/create/', views.CallLogCreateView.as_view(), name='call-log-create'),
+    path('messages/send-donor-notification/', views.SendDonorNotificationView.as_view(), name='send-donor-notification'),
+    path('confirm-donation/', views.DonorEmailConfirmationView.as_view(), name='donor-email-confirmation'),
 ]
 

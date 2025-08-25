@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, ActivityIndicator } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getMonthlyTracker } from '../constants/API';
 
 export default function SearchDonorsScreen() {
   const [bloodOpen, setBloodOpen] = useState(false);
@@ -26,9 +28,50 @@ export default function SearchDonorsScreen() {
     { label: 'Faisalabad', value: 'Faisalabad' },
   ]);
 
+  const [loading, setLoading] = useState(true);
+  const [monthlyGoalCompleted, setMonthlyGoalCompleted] = useState(false);
+  const [userEmail, setUserEmail] = useState(null);
+
+  useEffect(() => {
+    checkUserStatus();
+  }, []);
+
+  const checkUserStatus = async () => {
+    try {
+      const userString = await AsyncStorage.getItem('userInfo');
+      if (!userString) {
+        Alert.alert('Error', 'User not found. Please login again.');
+        router.replace('/signin');
+        return;
+      }
+
+      const user = JSON.parse(userString);
+      setUserEmail(user.email);
+
+      // Check monthly tracker status
+      const trackerResponse = await getMonthlyTracker(user.email);
+      if (trackerResponse.data && trackerResponse.data.monthly_goal_completed) {
+        setMonthlyGoalCompleted(true);
+      }
+    } catch (error) {
+      console.error('Error checking user status:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSearch = () => {
+    if (monthlyGoalCompleted) {
+      Alert.alert(
+        'Access Restricted',
+        'Your monthly donation requests have been completed. You cannot access the search feature until next month.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     if (!bloodValue || !cityValue) {
-      Alert.alert('Validation Error', 'Please select both blood group and city.');
+      Alert.alert('Error', 'Please select both blood group and city');
       return;
     }
 
@@ -41,6 +84,17 @@ export default function SearchDonorsScreen() {
       },
     });
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#e74c3c" />
+          <Text style={styles.loadingText}>Checking access...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -98,6 +152,16 @@ const styles = StyleSheet.create({
    container: { 
     flex: 1,
     backgroundColor: "#fff",
+   },
+   loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+   },
+   loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#2c3e50',
    },
    header: {
     backgroundColor: '#d40000',
