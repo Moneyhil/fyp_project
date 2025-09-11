@@ -1,35 +1,75 @@
 import { View, Text, Image, StyleSheet, TouchableOpacity} from 'react-native';
 import { useRouter } from 'expo-router';
-import AuthCheck from './AuthCheck'; 
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function BloodDonationApp() {
+export default function index() {
   const router = useRouter();
-  return (
-    <AuthCheck>
-      <View style={styles.container}>
-        <View style={styles.qoutecard}>
-          <Text style= {styles.qoutetext}>"Every Drop of Blood you Donate is a Silent Promise of Hope, a Powerful act of love and a Lifeline for some one in Need."</Text>
-        </View>
-        <Text style={styles.appname}>"Welcome"</Text>
-        <Image
-          source={require('../assets/images/mandw.png')} 
-          style={styles.image}
-          resizeMode="contain" />
-        <View style={styles.card}>
-          <Text style={styles.textcard}>"Because Someone, Somewhere, is Counting on You."</Text>
-         
-         <TouchableOpacity
-          style={styles.button}
-          onPress={() => router.replace('/up&inscreen')}>
-          <Text style={styles.buttonLabel}>Donate</Text>
-        </TouchableOpacity>
-        </View>
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    checkAuthAndRedirect();
+  }, []);
+
+  const checkAuthAndRedirect = async () => {
+    try {
+      const authToken = await AsyncStorage.getItem('authToken');
+      const userInfo = await AsyncStorage.getItem('userInfo');
+      
+      if (authToken && userInfo) {
+        const user = JSON.parse(userInfo);
+        if (user.is_staff) {
+          router.replace('/admindashboard');
+        } else {
+          router.replace('/home');
+        }
+        return;
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+  if (isCheckingAuth) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Loading...</Text>
       </View>
-    </AuthCheck>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.qoutecard}>
+        <Text style= {styles.qoutetext}>Every Drop of Blood you Donate is a Silent Promise of Hope, a Powerful act of love and a Lifeline for some one in Need."</Text>
+      </View>
+      <Text style={styles.appname}>Welcome</Text>
+      <Image
+        source={require('../assets/images/mandw.png')} 
+        style={styles.image}
+        resizeMode="contain" />
+      <View style={styles.card}>
+        <Text style={styles.textcard}>"Because Someone, Somewhere, is Counting on You."</Text>
+       
+       <TouchableOpacity
+        style={styles.button}
+        onPress={() => router.push('/upinscreen')}>
+        <Text style={styles.buttonLabel}>Donate</Text>
+      </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
   qoutecard:{
     backgroundColor: '#f7d0d0ff',
     padding: 20,

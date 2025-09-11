@@ -4,10 +4,9 @@ import Svg, { Path } from 'react-native-svg';
 
 const BloodDropLogo = () => (
   <Svg width="150" height="150" viewBox="0 0 150 150">
-    {/* Simple blood drop shape */}
     <Path
       d="M75 20 C85 30, 110 55, 110 85 C110 110, 95 125, 75 125 C55 125, 40 110, 40 85 C40 55, 65 30, 75 20 Z"
-      fill="#E53E3E"
+      fill="#d40000"
     />
   </Svg>
 );
@@ -56,7 +55,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // Clean white background
+    backgroundColor: '#FFFFFF', 
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -72,7 +71,7 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#d40000', // Red text color
+    color: '#d40000', 
     textAlign: 'center',
     marginBottom: 10,
     textShadowColor: 'rgba(229, 62, 62, 0.2)',

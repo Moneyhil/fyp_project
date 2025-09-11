@@ -28,20 +28,16 @@ export default function AuthCheck({ children }) {
       }
 
       try {
-        // Try to verify the current token by making a test API call
-        const user = JSON.parse(userInfo);
-        
-        // Set the authorization header for the test call
-        const testResponse = await api.get('/donation/admin/users/', {
-          headers: {
-            'Authorization': `Bearer ${authToken}`
-          }
+        // Use proper token verification endpoint
+        const testResponse = await api.post('/donation/token/verify/', {
+          token: authToken
         });
 
         // If the call succeeds, token is valid
         if (testResponse.status === 200) {
           setIsAuthenticated(true);
-          // Redirect to appropriate dashboard based on user type
+          // Parse userInfo to get user object
+          const user = JSON.parse(userInfo);
           if (user.is_staff) {
             router.replace('/admindashboard');
           } else {
@@ -60,34 +56,34 @@ export default function AuthCheck({ children }) {
               // Update stored tokens
               const { access, refresh: newRefresh } = refreshResponse.data;
               await AsyncStorage.setItem('authToken', access);
-              if (newRefresh) {
-                await AsyncStorage.setItem('refreshToken', newRefresh);
-              }
-
+              await AsyncStorage.setItem('refreshToken', newRefresh);
+              
               setIsAuthenticated(true);
-              // Redirect to appropriate dashboard
+              // Parse userInfo to get user object
               const user = JSON.parse(userInfo);
               if (user.is_staff) {
                 router.replace('/admindashboard');
               } else {
                 router.replace('/home');
               }
+            } else {
+              // Refresh failed, clear tokens and redirect to login
+              await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'userInfo']);
+              setIsAuthenticated(false);
             }
           } catch (refreshError) {
-            // Refresh failed, clear stored data and require login
+            // Refresh failed, clear tokens and redirect to login
             await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'userInfo']);
             setIsAuthenticated(false);
           }
         } else {
-          // No refresh token, clear stored data and require login
+          // No refresh token, clear storage and redirect to login
           await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'userInfo']);
           setIsAuthenticated(false);
         }
       }
     } catch (error) {
       console.error('Auth check error:', error);
-      // On any error, clear stored data and require login
-      await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'userInfo']);
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
@@ -102,9 +98,12 @@ export default function AuthCheck({ children }) {
     );
   }
 
-  // If authenticated, the user has already been redirected
-  // If not authenticated, show the children (welcome screen)
-  return !isAuthenticated ? children : null;
+  if (!isAuthenticated) {
+    router.replace('/upinscreen'); // Redirect to main screen instead of returning null
+    return null;
+  }
+
+  return children;
 }
 
 const styles = StyleSheet.create({

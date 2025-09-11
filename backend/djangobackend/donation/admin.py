@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from django.db.models import Q
-from .models import User, Profile, Admin, MonthlyDonationTracker, CallLog, DonationRequest
+from .models import User, Profile, Admin, MonthlyDonationTracker
 
 class CustomUserAdmin(UserAdmin):
     list_display = ('email', 'name', 'is_staff', 'user_status', 'date_joined', 'is_verified')  # Use date_joined instead of created_at
@@ -343,29 +343,12 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
         """Disable deleting records through this admin"""
         return False
 
-class CallLogAdmin(admin.ModelAdmin):
-    list_display = ('caller', 'receiver', 'call_status', 'both_confirmed', 'created_at', 'duration_seconds')
-    list_filter = ('call_status', 'both_confirmed', 'created_at')
-    search_fields = ('caller__email', 'receiver__email')
-    ordering = ('-created_at',)
-    readonly_fields = ('created_at', 'updated_at')
-
-class DonationRequestAdmin(admin.ModelAdmin):
-    list_display = ('requester', 'donor', 'blood_group', 'status', 'created_at')
-    list_filter = ('status', 'blood_group', 'created_at')
-    search_fields = ('requester__email', 'donor__email')
-    ordering = ('-created_at',)
-    readonly_fields = ('created_at', 'updated_at')
-
-
-
 # Register models with admin
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Profile, ProfileAdmin)
 admin.site.register(Admin, AdminAdmin)
 admin.site.register(MonthlyDonationTracker, MonthlyDonationTrackerAdmin)
-admin.site.register(CallLog, CallLogAdmin)
-admin.site.register(DonationRequest, DonationRequestAdmin)
+
 
 # Create a proxy model for blocked profiles to have a separate admin interface
 class BlockedProfiles(MonthlyDonationTracker):

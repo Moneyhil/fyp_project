@@ -5,19 +5,13 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 class DonationRequestService:
-    """
-    Service class for handling donation request business logic.
-    """
     
     @staticmethod
     def create_donation_request(requester, donor, blood_group, notes=''):
-        """
-        Create a donation request.
-        """
+ 
         from .models import DonationRequest
         
         try:
-            # Create donation request
             donation_request = DonationRequest.objects.create(
                 requester=requester,
                 donor=donor,
@@ -40,7 +34,6 @@ class DonationRequestService:
         from .email_config import EmailService
         
         try:
-            # Create donation request
             donation_request = DonationRequest.objects.create(
                 requester=requester,
                 donor=donor,
@@ -48,7 +41,7 @@ class DonationRequestService:
                 notes=notes
             )
             
-            # Send notification email to donor
+            # Send notification 
             try:
                 success, message = EmailService.send_donation_reminder_email(donor, donation_request)
                 if success:
@@ -66,14 +59,12 @@ class DonationRequestService:
             raise
     
     @staticmethod
-    def send_response_notification(donation_request, responder, response, notes):
-        """
-        Send notification when user/donor responds to donation request.
-        """
+    def send_response_notification(donation_request,response, notes):
+    
         from .email_config import EmailService
         
         try:
-            # Determine response type based on the boolean response
+            # boolean response
             response_type = 'accepted' if response else 'declined'
             
             if response_type == 'accepted':

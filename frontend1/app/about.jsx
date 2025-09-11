@@ -27,7 +27,7 @@ export default function AboutScreen() {
           {/* App Logo/Image */}
           <View style={styles.imageContainer}>
             <Image 
-              source={require('../assets/images/drop.png.png')} 
+              source={require('../assets/images/drop.png')} 
               style={styles.appImage}
               resizeMode="contain"
             />

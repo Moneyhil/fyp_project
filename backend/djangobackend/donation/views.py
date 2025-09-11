@@ -277,8 +277,8 @@ class AdminForgotPasswordView(View):
             cache.set(f"admin_pw_reset_{email}", otp, timeout=600)  # 10 min expiry
             
             send_mail(
-                "Admin Password Reset OTP",
-                f"Your OTP is {otp}",
+                "Password Reset Code",
+                f"Your password reset code: {otp}",
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
                 fail_silently=False
@@ -484,8 +484,8 @@ class UserCreate(CreateAPIView):
             raw_otp = user.generate_otp()  # Using model's method
             
             send_mail(
-                "Verify Your Account",
-                f"Your verification code: {raw_otp}",
+                "Email Verification Required",
+                f"Your email verification code: {raw_otp}",
                 settings.DEFAULT_FROM_EMAIL,
                 [user.email],
                 fail_silently=False
@@ -526,8 +526,8 @@ def send_otp(request):
         raw_otp = user.generate_otp()  # Use your model's method
         
         send_mail(
-            "Your Verification Code",
-            f"Your OTP: {raw_otp}",
+            "Email Verification Required",
+            f"Your email verification code: {raw_otp}",
             settings.DEFAULT_FROM_EMAIL,
             [user.email],
             fail_silently=False
@@ -598,8 +598,8 @@ class UserForgotPasswordView(APIView):
             cache.set(f"user_pw_reset_{email}", otp, timeout=600)  # 10 min expiry
             
             send_mail(
-                "Password Reset OTP",
-                f"Your password reset OTP is: {otp}. This OTP will expire in 10 minutes.",
+                "Password Reset Code",
+                f"Your password reset code: {otp}. This OTP will expire in 10 minutes.",
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
                 fail_silently=False
@@ -960,7 +960,6 @@ class DonationRequestResponseView(APIView):
                 # Send notification to the other party
                 DonationRequestService.send_response_notification(
                     donation_request=donation_request,
-                    responder=user,
                     response=response,
                     notes=notes
                 )

@@ -183,7 +183,7 @@ export default function AdminLogin() {
             <Text style={styles.buttonText}>{loading ? "Signing In..." : "Admin Sign In"}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.push("/up&inscreen")}>
+          <TouchableOpacity onPress={() => router.push("/upinscreen")}>
             <Text style={styles.text}>
               Back to <Text style={styles.Link}>Main Screen</Text>
             </Text>
