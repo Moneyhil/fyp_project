@@ -185,7 +185,6 @@ class AdminLoginView(View):
                 
                 return JsonResponse({
                     "message": "Admin logged in successfully",
-                    "token": access_token,
                     "access_token": access_token,
                     "refresh_token": refresh_token,
                     "user": {
@@ -570,7 +569,6 @@ class VerifyOTPView(APIView):
             {
                 "message": "Email verified successfully!",
                 "user": user_serializer.data,
-                "token": access_token,
                 "access_token": access_token,
                 "refresh_token": str(refresh),
                 "next_step": "dashboard"
@@ -1014,18 +1012,55 @@ class MonthlyTrackerView(APIView):
     def get(self, request):
         """Get monthly donation tracker for a user."""
         try:
+            # Log the incoming request for debugging
+            logger.info(f"Monthly tracker request - Query params: {dict(request.query_params)}")
+            logger.info(f"Request URL: {request.get_full_path()}")
+            
             user_email = request.query_params.get('user_email')
             
-            if not user_email:
+            # Enhanced validation with more specific error messages
+            if not user_email or str(user_email).strip() in ['undefined', 'null', '']:
+                logger.warning(f"Monthly tracker request missing or invalid user_email parameter. Received: '{user_email}'. Available params: {list(request.query_params.keys())}")
                 return Response(
-                    {"error": "user_email is required"},
+                    {
+                        "error": "user_email is required",
+                        "details": "Please provide user_email as a query parameter",
+                        "example": "/donation/monthly-tracker/?user_email=user@example.com",
+                        "received_params": list(request.query_params.keys()),
+                        "received_email": user_email
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Validate email format and strip whitespace
+            user_email = user_email.strip()
+            if not user_email:
+                logger.warning("Monthly tracker request with empty user_email parameter")
+                return Response(
+                    {
+                        "error": "user_email cannot be empty",
+                        "details": "Please provide a valid email address"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Basic email format validation
+            if '@' not in user_email or '.' not in user_email:
+                logger.warning(f"Invalid email format: {user_email}")
+                return Response(
+                    {
+                        "error": "Invalid email format",
+                        "details": "Please provide a valid email address"
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Get the user
             try:
                 user = User.objects.get(email=user_email)
+                logger.info(f"Found user for monthly tracker: {user.email}")
             except User.DoesNotExist:
+                logger.warning(f"User not found for monthly tracker: {user_email}")
                 return Response(
                     {"error": "User not found"},
                     status=status.HTTP_404_NOT_FOUND,
@@ -1033,22 +1068,31 @@ class MonthlyTrackerView(APIView):
 
             # Get or create current month tracker
             from .models import MonthlyDonationTracker
-            tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(user)
+            try:
+                tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(user)
+                logger.info(f"Monthly tracker {'created' if created else 'retrieved'} for user {user.email}")
+            except Exception as tracker_error:
+                logger.error(f"Error creating/retrieving monthly tracker for {user.email}: {str(tracker_error)}")
+                return Response(
+                    {"error": "Failed to retrieve monthly tracker data"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
-            return Response(
-                {
-                    "user_email": user.email,
-                    "month": tracker.month.strftime('%B %Y'),
-                    "completed_calls_count": tracker.completed_calls_count,
-                    "monthly_goal_completed": tracker.monthly_goal_completed,
-                    "goal_completed_at": tracker.goal_completed_at,
-                    "progress": f"{tracker.completed_calls_count}/3"
-                },
-                status=status.HTTP_200_OK,
-            )
+            response_data = {
+                "user_email": user.email,
+                "month": tracker.month.strftime('%B %Y'),
+                "completed_calls_count": tracker.completed_calls_count,
+                "monthly_goal_completed": tracker.monthly_goal_completed,
+                "goal_completed_at": tracker.goal_completed_at,
+                "progress": f"{tracker.completed_calls_count}/3"
+            }
+            
+            logger.info(f"Monthly tracker response for {user.email}: {response_data}")
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
-            logger.error(f"Error getting monthly tracker: {str(e)}")
+            logger.error(f"Unexpected error getting monthly tracker: {str(e)}")
+            logger.error(f"Request details - Method: {request.method}, Path: {request.path}, Query params: {dict(request.query_params)}")
             return Response(
                 {"error": "Failed to get monthly tracker"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1272,18 +1316,15 @@ class DonorEmailConfirmationView(APIView):
                         goal_completed = tracker.increment_call_count()
                         count_completed = True
                         
-                        # Check if user has reached monthly limit
-                        if tracker.completed_calls_count >= 3:
-                            tracker.monthly_goal_completed = True
-                            tracker.goal_completed_at = timezone.now()
-                            
+                        # Check if user has reached monthly limit and block them
+                        if tracker.completed_calls_count >= 3 and not call_log.caller.is_active == False:
                             # Block the user account
                             call_log.caller.is_active = False
                             call_log.caller.save()
                             
                             logger.info(f"User {call_log.caller.email} blocked after completing monthly goal")
                             
-                        tracker.save()
+                        # Don't call tracker.save() again as increment_call_count() already saved it
                         logger.info(f"Count incremented for requester {call_log.caller.email}. New count: {tracker.completed_calls_count}")
                     except Exception as e:
                         logger.error(f"Error incrementing count: {str(e)}")
@@ -1314,9 +1355,7 @@ class DonorEmailConfirmationView(APIView):
             # Prepare response message
             if response == 'yes':
                 if count_completed:
-                    message = f"Thank you {call_log.receiver.name}! Your agreement to donate blood has been recorded. One count has been completed for the requester. We will contact you soon with donation details."
-                else:
-                    message = f"Thank you {call_log.receiver.name}! Your agreement to donate blood has been recorded. We will contact you soon with donation details."
+                    message = f"Dear {call_log.receiver.name}, your generosity means the world to us! Your agreement to donate blood has been recorded and one count has been completed for the requester. You are truly a hero - your donation will save lives. We will contact you soon with donation details. Thank you for being an angel! "
             else:
                 message = f"Thank you {call_log.receiver.name} for your response. We understand you cannot donate at this time."
             
@@ -1337,3 +1376,13 @@ class DonorEmailConfirmationView(APIView):
                 {"error": "An error occurred while processing confirmation"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class ProfileRedirectView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        """Redirect to profile creation or dashboard."""
+        return JsonResponse({
+            "message": "Profile endpoint",
+            "redirect": "/dashboard"
+        })

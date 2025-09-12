@@ -5,7 +5,8 @@ import * as Yup from "yup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import api from "../constants/API";
- 
+import { checkAuthStatus, redirectBasedOnRole } from '../utils/authUtils';
+
 export default function AdminLogin() {
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -24,17 +25,10 @@ export default function AdminLogin() {
 
   const checkAuthAndRedirect = async () => {
     try {
-      const authToken = await AsyncStorage.getItem('authToken');
-      const userInfo = await AsyncStorage.getItem('userInfo');
+      const { isAuthenticated, user } = await checkAuthStatus();
       
-      if (authToken && userInfo) {
-        // User is already logged in, redirect to appropriate screen
-        const user = JSON.parse(userInfo);
-        if (user.is_staff) {
-          router.replace('/admindashboard');
-        } else {
-          router.replace('/home');
-        }
+      if (isAuthenticated && user) {
+        redirectBasedOnRole(user, router);
         return;
       }
     } catch (error) {

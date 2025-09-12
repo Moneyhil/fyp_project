@@ -1,7 +1,9 @@
-import { View, Text, Image, StyleSheet, TouchableOpacity} from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../constants/API';
+import { checkAuthStatus, redirectBasedOnRole } from '../utils/authUtils';
 
 export default function index() {
   const router = useRouter();
@@ -13,16 +15,10 @@ export default function index() {
 
   const checkAuthAndRedirect = async () => {
     try {
-      const authToken = await AsyncStorage.getItem('authToken');
-      const userInfo = await AsyncStorage.getItem('userInfo');
+      const { isAuthenticated, user } = await checkAuthStatus();
       
-      if (authToken && userInfo) {
-        const user = JSON.parse(userInfo);
-        if (user.is_staff) {
-          router.replace('/admindashboard');
-        } else {
-          router.replace('/home');
-        }
+      if (isAuthenticated && user) {
+        redirectBasedOnRole(user, router);
         return;
       }
     } catch (error) {
@@ -35,7 +31,8 @@ export default function index() {
   if (isCheckingAuth) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Loading...</Text>
+        <ActivityIndicator size="large" color="#d40000" />
+        <Text style={styles.loadingText}>Checking login session...</Text>
       </View>
     );
   }
@@ -43,7 +40,7 @@ export default function index() {
   return (
     <View style={styles.container}>
       <View style={styles.qoutecard}>
-        <Text style= {styles.qoutetext}>Every Drop of Blood you Donate is a Silent Promise of Hope, a Powerful act of love and a Lifeline for some one in Need."</Text>
+        <Text style={styles.qoutetext}>Every Drop of Blood you Donate is a Silent Promise of Hope, a Powerful act of love and a Lifeline for some one in Need."</Text>
       </View>
       <Text style={styles.appname}>Welcome</Text>
       <Image
@@ -69,6 +66,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
   qoutecard:{
     backgroundColor: '#f7d0d0ff',

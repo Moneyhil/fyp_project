@@ -40,7 +40,7 @@ api.interceptors.response.use(
         const refreshToken = await AsyncStorage.getItem('refreshToken');
         if (refreshToken) {
           const refreshResponse = await axios.post(
-            'http://192.168.100.16:8000/donation/token/refresh/',
+            `${api.defaults.baseURL}/donation/token/refresh/`,  // Use baseURL instead of hardcoded
             { refresh: refreshToken }
           );
           
@@ -64,14 +64,24 @@ api.interceptors.response.use(
 
 // Export API functions
 export const getDonationRequests = () => api.get('/donation/requests/');
-export const createProfile = (profileData) => api.post('/donation/profile/', profileData);
-export const getProfile = () => api.get('/donation/profile/');
-export const getMonthlyTracker = () => api.get('/donation/monthly-tracker/');
+export const createProfile = (profileData) => api.post('/donation/profile/create/', profileData);
+export const getProfile = (email) => api.get(`/donation/profile/${email}/`);
+export const getMonthlyTracker = (email) => {
+  console.log('getMonthlyTracker called with:', email, 'type:', typeof email);
+  
+  if (!email || email === 'undefined' || email === 'null') {
+    console.error('Invalid email passed to getMonthlyTracker:', email);
+    return Promise.reject(new Error('Invalid email parameter'));
+  }
+  
+  const url = `/donation/monthly-tracker/?user_email=${encodeURIComponent(email)}`;
+  console.log('Making request to URL:', url);
+  
+  return api.get(url);
+};
 export const createDonationRequest = (requestData) => api.post('/donation/requests/', requestData);
-export const createCallLog = (callData) => api.post('/donation/call-logs/', callData);
-export const respondToDonationRequest = (requestId, responseData) => 
-  api.patch(`/donation/requests/${requestId}/`, responseData);
+export const createCallLog = (callData) => api.post('/donation/call-logs/create/', callData);
 export const sendDonorNotification = (notificationData) => 
-  api.post('/donation/notifications/', notificationData);
+  api.post('/donation/messages/send-donor-notification/', notificationData);
 
 export default api;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,6 @@ import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { getProfile, getMonthlyTracker } from '../constants/API';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback } from 'react';
 
 export default function UsersProfileScreen() {
   const [profileData, setProfileData] = useState(null);
@@ -32,48 +31,105 @@ export default function UsersProfileScreen() {
   );
 
   const fetchUserProfile = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
-      
-      // Debug: Check what's in AsyncStorage
       const userString = await AsyncStorage.getItem('userInfo');
-      const authToken = await AsyncStorage.getItem('authToken');
-      
-      console.log('Debug - User data:', userString);
-      console.log('Debug - Auth token:', authToken);
-      
       if (!userString) {
-        console.log('No user data found in AsyncStorage');
-        Alert.alert('Error', 'User not found. Please login again.');
-        router.replace('/signin');
+        setError('No user data found. Please log in again.');
+        setLoading(false);
         return;
       }
-
+  
       const user = JSON.parse(userString);
-      const email = user.email;
-
-      // Fetch profile data and donation tracker in parallel
-      const [profileResponse, trackerResponse] = await Promise.all([
-        getProfile(email),
-        getMonthlyTracker(email)
-      ]);
+      console.log('Parsed user object:', user);
+      console.log('Available user properties:', Object.keys(user));
       
-      if (profileResponse.status === 200) {
-        setProfileData(profileResponse.data.profile);
+      // Try different possible email field names with detailed logging
+      const email = user.email || user.userEmail || user.User_email || user.emailAddress || user.user_email;
+      
+      console.log('Email extraction attempts:', {
+        'user.email': user.email,
+        'user.userEmail': user.userEmail,
+        'user.User_email': user.User_email,
+        'user.emailAddress': user.emailAddress,
+        'user.user_email': user.user_email,
+        'final_email': email
+      });
+      
+      if (!email || email === 'undefined' || email === 'null') {
+        console.error('No valid email found in user object:', user);
+        setError('User email not found. Please log in again.');
+        setLoading(false);
+        return;
       }
       
-      // Set donation tracker data (it's okay if this fails)
-      if (trackerResponse.data) {
-        setDonationTracker(trackerResponse.data);
+      // Additional email validation
+      if (typeof email !== 'string' || !email.includes('@')) {
+        console.error('Invalid email format:', email);
+        setError('Invalid email format. Please log in again.');
+        setLoading(false);
+        return;
       }
+      
+      console.log('Using email for API calls:', email);
+  
+      // Fetch profile data (required)
+      try {
+        console.log('Calling getProfile with email:', email);
+        const profileResponse = await getProfile(email);
+        if (profileResponse.status === 200) {
+          setProfileData(profileResponse.data.profile);
+        }
+      } catch (profileError) {
+        console.error('Profile fetch error:', profileError);
+        if (profileError.response && profileError.response.status === 404) {
+          setError('Profile not found. Please create your profile first.');
+        } else {
+          setError('Failed to load profile. Please try again.');
+        }
+        setLoading(false);
+        return;
+      }
+  
+      // Fetch monthly tracker data
+      try {
+        console.log('Calling getMonthlyTracker with email:', email);
+        console.log('Email type:', typeof email, 'Email length:', email.length);
+        
+        // Final validation before API call
+        if (!email || email.trim() === '' || email === 'undefined') {
+          console.warn('Email validation failed before API call:', email);
+          return;
+        }
+        
+        const monthlyResponse = await getMonthlyTracker(email.trim());
+        console.log('Monthly tracker response:', monthlyResponse);
+        
+        if (monthlyResponse.status === 200) {
+          if (monthlyResponse.data) {
+            setDonationTracker(monthlyResponse.data);
+            console.log('Monthly tracker data set:', monthlyResponse.data);
+          } else {
+            console.warn('Monthly tracker response has no data');
+          }
+        } else {
+          console.warn('Monthly tracker response status:', monthlyResponse.status);
+        }
+      } catch (monthlyError) {
+        console.error('Monthly tracker fetch failed:', monthlyError);
+        console.error('Error details:', {
+          message: monthlyError.message,
+          response: monthlyError.response?.data,
+          status: monthlyError.response?.status,
+          url: monthlyError.config?.url
+        });
+      }
+      
     } catch (error) {
-      console.error('Profile fetch error:', error);
-      if (error.response && error.response.status === 404) {
-        setError('Profile not found. Please create your profile first.');
-      } else {
-        setError('Failed to load profile. Please try again.');
-      }
+      console.error('General fetch error:', error);
+      setError('Failed to load data. Please try again.');
     } finally {
       setLoading(false);
     }

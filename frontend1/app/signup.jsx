@@ -5,6 +5,7 @@ import * as Yup from "yup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import api from "../constants/API";
+import { checkAuthStatus } from "../utils/authUtils";
 
 export default function Registration() {
   const router = useRouter();
@@ -27,12 +28,10 @@ export default function Registration() {
 
   const checkAuthAndRedirect = async () => {
     try {
-      const authToken = await AsyncStorage.getItem('authToken');
-      const userInfo = await AsyncStorage.getItem('userInfo');
+      const { isAuthenticated, user } = await checkAuthStatus();
       
-      if (authToken && userInfo) {
+      if (isAuthenticated && user) {
         // User is already logged in, redirect to appropriate screen
-        const user = JSON.parse(userInfo);
         if (user.is_staff) {
           router.replace('/admindashboard');
         } else {

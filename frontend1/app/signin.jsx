@@ -5,7 +5,8 @@ import * as Yup from "yup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import api from "../constants/API";
- 
+import { checkAuthStatus, saveAuthData } from '../utils/authUtils';
+
 export default function Login() {
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -23,14 +24,12 @@ export default function Login() {
     checkAuthAndRedirect();
   }, []);
 
+  // Replace the checkAuthAndRedirect function with:
   const checkAuthAndRedirect = async () => {
     try {
-      const authToken = await AsyncStorage.getItem('authToken');
-      const userInfo = await AsyncStorage.getItem('userInfo');
+      const { isAuthenticated, user } = await checkAuthStatus();
       
-      if (authToken && userInfo) {
-        // User is already logged in, redirect to appropriate screen
-        const user = JSON.parse(userInfo);
+      if (isAuthenticated && user) {
         if (user.is_staff) {
           router.replace('/admindashboard');
         } else {
@@ -89,19 +88,43 @@ export default function Login() {
         }
       );
 
+      console.log('Login response:', response.data); // Add this for debugging
+
       if (response.status === 200) {
         const { token, access_token, refresh_token, user } = response.data;
-        const authToken = token || access_token; // Handle both field names
-
-        // Store tokens & user info
-        await AsyncStorage.setItem("authToken", authToken);
-        if (refresh_token) {
-          await AsyncStorage.setItem("refreshToken", refresh_token);
+        
+        // Use the correct token field
+        const authToken = token || access_token;
+        
+        console.log('Auth token:', authToken); // Add this for debugging
+        console.log('Refresh token:', refresh_token); // Add this for debugging
+        
+        if (authToken && refresh_token && user) {
+          // Save authentication data
+          await AsyncStorage.setItem('authToken', authToken);
+          await AsyncStorage.setItem('refreshToken', refresh_token);
+          await AsyncStorage.setItem('userInfo', JSON.stringify(user));
         }
-        await AsyncStorage.setItem("userInfo", JSON.stringify(user));
+        console.log('User:', user); // Add this for debugging
 
+        if (!authToken) {
+          Alert.alert("Error", "No authentication token received");
+          return;
+        }
+
+        // Save tokens and user info for persistent login
+        await AsyncStorage.setItem('authToken', authToken);
+        await AsyncStorage.setItem('refreshToken', refresh_token);
+        await AsyncStorage.setItem('userInfo', JSON.stringify(user));
+        
         Alert.alert("Success", "Login successful!");
-        router.replace("/home");
+        
+        // Redirect based on user type
+        if (user.is_staff) {
+          router.replace('/admindashboard');
+        } else {
+          router.replace('/home');
+        }
       }
     } catch (err) {
       if (err.response) {

@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../constants/API';
+import { checkAuthStatus } from '../utils/authUtils';
 
 export default function ForgetPassword() {
   const [email, setEmail] = useState('');
@@ -15,12 +16,9 @@ export default function ForgetPassword() {
 
   const checkAuthAndRedirect = async () => {
     try {
-      const authToken = await AsyncStorage.getItem('authToken');
-      const userInfo = await AsyncStorage.getItem('userInfo');
+      const { isAuthenticated, user } = await checkAuthStatus();
       
-      if (authToken && userInfo) {
-        // User is already logged in, redirect to appropriate screen
-        const user = JSON.parse(userInfo);
+      if (isAuthenticated && user) {
         if (user.is_staff) {
           router.replace('/admindashboard');
         } else {
@@ -45,8 +43,17 @@ export default function ForgetPassword() {
       return;
     }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Validation', 'Please enter a valid email address');
+      return;
+    }
+
     try {
-      const response = await api.post('/donation/forgot-password/', { email });
+      const response = await api.post('/donation/forgot-password/', { 
+        email: email.trim().toLowerCase() 
+      });
 
       if (response.status === 200) {
         Alert.alert(
@@ -55,16 +62,20 @@ export default function ForgetPassword() {
           [
             {
               text: 'OK',
-              onPress: () => router.push({ pathname: '/resetpassword', params: { email } })
+              onPress: () => router.push({ pathname: '/resetpassword', params: { email: email.trim().toLowerCase() } })
             }
           ]
         );
-      } else {
-        Alert.alert('Error', response.data.error || 'Failed to reset password');
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Network error occurred');
+      console.error('Forgot password error:', error);
+      
+      let errorMessage = 'Network error occurred';
+      if (error.response) {
+        errorMessage = error.response.data?.error || error.response.data?.message || 'Failed to send reset code';
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 

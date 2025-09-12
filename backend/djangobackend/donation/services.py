@@ -19,6 +19,9 @@ class DonationRequestService:
                 notes=notes
             )
             
+            # Donation request created successfully
+            logger.info(f"Donation request {donation_request.id} created successfully")
+            
             return donation_request
             
         except Exception as e:

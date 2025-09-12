@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { checkAuthStatus, redirectBasedOnRole } from '../utils/authUtils';
 
 export default function UpInScreen() {
     const router = useRouter();
@@ -13,16 +14,10 @@ export default function UpInScreen() {
 
     const checkAuthAndRedirect = async () => {
         try {
-            const authToken = await AsyncStorage.getItem('authToken');
-            const userInfo = await AsyncStorage.getItem('userInfo');
+            const { isAuthenticated, user } = await checkAuthStatus();
             
-            if (authToken && userInfo) {
-                const user = JSON.parse(userInfo);
-                if (user.is_staff) {
-                    router.replace('/admindashboard');
-                } else {
-                    router.replace('/home');
-                }
+            if (isAuthenticated && user) {
+                redirectBasedOnRole(user, router);
                 return;
             }
         } catch (error) {

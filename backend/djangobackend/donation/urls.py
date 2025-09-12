@@ -39,6 +39,7 @@ urlpatterns = [
     path('reset-password/', views.UserResetPasswordView.as_view(), name='user-reset-password'),
     
     # Profile management
+    path('profile/', views.ProfileRedirectView.as_view(), name='profile-redirect'),
     path('profile/create/', views.ProfileCreateView.as_view(), name='profile-create'),
     path('profile/<str:email>/', views.ProfileDetailView.as_view(), name='profile-detail'),
     

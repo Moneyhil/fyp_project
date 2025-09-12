@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -125,12 +125,21 @@ export default function OTPVerification() {
         // Clear pending verification email
         await AsyncStorage.removeItem('pendingVerificationEmail');
         
-        // Store user data and token if available
-        if (response.data.user) {
-          await AsyncStorage.setItem('userInfo', JSON.stringify(response.data.user));
+        // Store user data and tokens properly
+        const { user, token, access_token, refresh_token } = response.data;
+        
+        if (user) {
+          await AsyncStorage.setItem('userInfo', JSON.stringify(user));
         }
-        if (response.data.token) {
-          await AsyncStorage.setItem('authToken', response.data.token);
+        
+        // Handle different token response formats
+        const authToken = token || access_token;
+        if (authToken) {
+          await AsyncStorage.setItem('authToken', authToken);
+        }
+        
+        if (refresh_token) {
+          await AsyncStorage.setItem('refreshToken', refresh_token);
         }
         
         Alert.alert(
