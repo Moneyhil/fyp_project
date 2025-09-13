@@ -39,10 +39,10 @@ export default function AdminLogin() {
   };
 
   if (isCheckingAuth) {
-    return null; // Show nothing while checking
+    return null; 
   }
 
-  // Validation schema
+
   const validationSchema = Yup.object().shape({
     email: Yup.string().email("Invalid email format").required("Email is required"),
     password: Yup.string().required("Password is required"),
@@ -84,9 +84,9 @@ export default function AdminLogin() {
 
       if (response.status === 200) {
         const { token, access_token, refresh_token, user } = response.data;
-        const authToken = token || access_token; // Handle both field names
+        const authToken = token || access_token; 
 
-        // Store tokens & user info
+        
         await AsyncStorage.setItem("authToken", authToken);
         if (refresh_token) {
           await AsyncStorage.setItem("refreshToken", refresh_token);

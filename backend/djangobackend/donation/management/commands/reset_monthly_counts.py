@@ -25,7 +25,7 @@ class Command(BaseCommand):
         )
     
     def handle(self, *args, **options):
-        # Determine the target month
+        
         if options['month']:
             try:
                 target_date = datetime.strptime(options['month'], '%Y-%m').date()
@@ -94,7 +94,7 @@ class Command(BaseCommand):
                         f'[DRY RUN] Would reset tracker for {user.email} - {target_month.strftime("%B %Y")}'
                     )
         
-        # Also check for any existing trackers in the current month that might need reset
+        
         current_month_trackers = MonthlyDonationTracker.objects.filter(
             month=target_month,
             monthly_goal_completed=True,
@@ -120,7 +120,7 @@ class Command(BaseCommand):
                         f'[DRY RUN] Would force reset tracker for {tracker.user.email} - {target_month.strftime("%B %Y")}'
                     )
         
-        # Summary
+
         if options['dry_run']:
             self.stdout.write(
                 self.style.WARNING(

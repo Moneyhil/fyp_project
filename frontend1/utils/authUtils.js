@@ -61,7 +61,7 @@ export const saveAuthData = async (authToken, refreshToken, userInfo) => {
   await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
 };
 
-// Add these new utility functions:
+
 
 export const redirectBasedOnRole = (user, router) => {
   if (user.is_staff) {

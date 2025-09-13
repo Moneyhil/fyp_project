@@ -30,7 +30,7 @@ class Command(BaseCommand):
             start_time = timezone.now()
             logger.info(f'Starting monthly reset job at {start_time}')
             
-            # Call the actual reset command
+            
             call_command('reset_monthly_counts')
             
             end_time = timezone.now()
@@ -51,5 +51,5 @@ class Command(BaseCommand):
                 self.style.ERROR(error_msg)
             )
             
-            # Re-raise the exception so the scheduler knows it failed
+            
             raise e

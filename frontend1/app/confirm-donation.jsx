@@ -1,11 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  SafeAreaView,
-} from 'react-native';
+import {  View, Text, StyleSheet, ActivityIndicator} from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import api from '../constants/API';
 
@@ -28,18 +22,15 @@ export default function ConfirmDonationScreen() {
     try {
       setLoading(true);
       
-      // Make API call to backend confirmation endpoint
+    
       const apiResponse = await api.get(
-        `/donation/confirm-donation/?call_id=${call_id}&response=${response}`
+        `/donation/confirm-donation/?call_log_id=${call_id}&response=${response}`
       );
       
       if (apiResponse.data.success) {
         setSuccess(true);
-        if (response === 'yes') {
-          setMessage('Thank you! Your donation commitment has been confirmed. Your monthly count has been updated.');
-        } else {
-          setMessage('Thank you for your response. We understand you cannot donate at this time.');
-        }
+        // Use the personalized message from backend
+        setMessage(apiResponse.data.message || 'Thank you for your response!');
       } else {
         setMessage(apiResponse.data.message || 'Failed to process confirmation');
       }
@@ -52,7 +43,7 @@ export default function ConfirmDonationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Donation Confirmation</Text>
         
@@ -69,7 +60,7 @@ export default function ConfirmDonationScreen() {
           </View>
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

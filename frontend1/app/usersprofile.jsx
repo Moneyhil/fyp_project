@@ -1,13 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text,  StyleSheet,  TouchableOpacity,  ActivityIndicator} from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { getProfile, getMonthlyTracker } from '../constants/API';
@@ -23,7 +15,6 @@ export default function UsersProfileScreen() {
     fetchUserProfile();
   }, []);
 
-  // Refresh profile data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       fetchUserProfile();
@@ -43,10 +34,6 @@ export default function UsersProfileScreen() {
       }
   
       const user = JSON.parse(userString);
-      console.log('Parsed user object:', user);
-      console.log('Available user properties:', Object.keys(user));
-      
-      // Try different possible email field names with detailed logging
       const email = user.email || user.userEmail || user.User_email || user.emailAddress || user.user_email;
       
       console.log('Email extraction attempts:', {
@@ -65,7 +52,6 @@ export default function UsersProfileScreen() {
         return;
       }
       
-      // Additional email validation
       if (typeof email !== 'string' || !email.includes('@')) {
         console.error('Invalid email format:', email);
         setError('Invalid email format. Please log in again.');
@@ -74,8 +60,7 @@ export default function UsersProfileScreen() {
       }
       
       console.log('Using email for API calls:', email);
-  
-      // Fetch profile data (required)
+
       try {
         console.log('Calling getProfile with email:', email);
         const profileResponse = await getProfile(email);
@@ -93,12 +78,11 @@ export default function UsersProfileScreen() {
         return;
       }
   
-      // Fetch monthly tracker data
       try {
         console.log('Calling getMonthlyTracker with email:', email);
         console.log('Email type:', typeof email, 'Email length:', email.length);
         
-        // Final validation before API call
+
         if (!email || email.trim() === '' || email === 'undefined') {
           console.warn('Email validation failed before API call:', email);
           return;
@@ -139,18 +123,18 @@ export default function UsersProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#d40000" />
           <Text style={styles.loadingText}>Loading your profile...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -166,13 +150,13 @@ export default function UsersProfileScreen() {
           <Ionicons name="person-circle-outline" size={80} color="#ccc" />
           <Text style={styles.errorText}>{error}</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
+    <View style={styles.container}>
+      
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton} 
@@ -185,9 +169,9 @@ export default function UsersProfileScreen() {
       </View>
 
       <View style={styles.content}>
-        {/* Profile Card */}
+        
         <View style={styles.profileCard}>
-          {/* Information Section */}
+          
           <View style={styles.infoSection}>
             <View style={styles.infoRow}>
               <View style={styles.infoItem}>
@@ -273,7 +257,7 @@ export default function UsersProfileScreen() {
           </View>
         </View>
 
-        {/* Donation Count Card */}
+        
         {donationTracker && (
           <View style={styles.donationCard}>
             <View style={styles.donationHeader}>
@@ -312,7 +296,7 @@ export default function UsersProfileScreen() {
         )}
 
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

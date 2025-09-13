@@ -1,21 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Animated
-} from 'react-native';
+import { View,  Text,  TextInput,  TouchableOpacity,  StyleSheet,  Alert,  ActivityIndicator,  KeyboardAvoidingView,  Platform,  ScrollView,  Animated} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Yup from 'yup';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../constants/API';
 import { checkAuthStatus } from '../utils/authUtils';
 
@@ -48,7 +35,7 @@ export default function ResetPassword() {
   };
 
   if (isCheckingAuth) {
-    return null; // Show nothing while checking
+    return null; 
   }
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -79,7 +66,7 @@ export default function ResetPassword() {
   });
 
   useEffect(() => {
-    // Fade in animation
+    
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 500,
@@ -92,16 +79,16 @@ export default function ResetPassword() {
     newOtp[index] = text;
     setOtp(newOtp);
 
-    // Auto-focus next input
+    
     if (text && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
 
-    setError(''); // Clear error when user types
+    setError(''); 
   };
 
   const handleKeyPress = (e, index) => {
-    // Handle backspace
+  
     if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
@@ -128,7 +115,7 @@ export default function ResetPassword() {
       console.log('Response status:', response.status);
 
       if (response.status === 200) {
-        setStep(2); // Move to password reset step
+        setStep(2); 
       } else {
         setError(response.data.error || 'Invalid verification code');
       }

@@ -6,7 +6,7 @@ export default function RootLayout() {
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    // Hide splash screen after 3 seconds
+    
     const timer = setTimeout(() => {
       setShowSplash(false);
     }, 3000);

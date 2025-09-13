@@ -7,11 +7,11 @@ import api from '../constants/API';
 export default function HomeScreen() {
   const handleLogout = async () => {
     try {
-      // Get refresh token from storage
+      
       const refreshToken = await AsyncStorage.getItem('refreshToken');
       
       if (refreshToken) {
-        // Send logout request to backend
+        
         await api.post(
           '/donation/logout/',
           { refresh_token: refreshToken }
@@ -19,9 +19,9 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.log('Logout API error:', error);
-      // Continue with logout even if API call fails
+
     } finally {
-      // Clear all tokens and user data from storage
+      
       await AsyncStorage.multiRemove([
         'authToken',
         'refreshToken', 
@@ -40,7 +40,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      
       <View style={styles.header}>
         <Text style={styles.headerText}>Blood Donation App</Text>
       </View>
@@ -50,9 +50,9 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Main Content */}
+      
         <View style={styles.content}>
-          {/* Buttons */}
+          
           <TouchableOpacity style={styles.button} onPress={() => router.push('/usersprofile')}>
             <Text style={styles.buttonText}>Profile</Text>
           </TouchableOpacity>
@@ -66,7 +66,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Logout Link at Bottom */}
+        
         <View style={styles.logoutContainer}>
           <TouchableOpacity onPress={handleLogout}>
             <Text style={styles.logoutLinkText}>Logout</Text>

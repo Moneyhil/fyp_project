@@ -46,7 +46,7 @@ class CustomUserAdmin(UserAdmin):
     block_user_account.short_description = "Block selected user accounts (non-staff only)"
     
     def unblock_user_account(self, request, queryset):
-        """Admin action to unblock user accounts"""
+    
         from donation.email_config import EmailService
         from django.utils import timezone
         
@@ -60,13 +60,13 @@ class CustomUserAdmin(UserAdmin):
                 user.save()
                 count += 1
                 
-                # Send unblock notification email
+                
                 try:
                     success, message = EmailService.send_monthly_unblock_notification(user, current_month)
                     if success:
                         email_count += 1
                 except Exception as e:
-                    pass  # Continue even if email fails
+                    pass  
         
         message = f'Successfully unblocked {count} user accounts.'
         if email_count > 0:
@@ -80,7 +80,7 @@ class CustomUserAdmin(UserAdmin):
         
         count = 0
         for user in queryset:
-            if not user.is_staff:  # Prevent deletion of staff accounts
+            if not user.is_staff:  
                 try:
                     user_email = user.email
                     user.delete()
@@ -150,13 +150,13 @@ class ProfileAdmin(admin.ModelAdmin):
                 user.save()
                 count += 1
                 
-                # Send unblock notification email
+                
                 try:
                     success, message = EmailService.send_monthly_unblock_notification(user, current_month)
                     if success:
                         email_count += 1
                 except Exception as e:
-                    pass  # Continue even if email fails
+                    pass  
         
         message = f'Successfully unblocked {count} user accounts.'
         if email_count > 0:
@@ -172,7 +172,7 @@ class ProfileAdmin(admin.ModelAdmin):
         for profile in queryset:
             user = profile.user
             try:
-                # Delete the user (this will cascade delete the profile)
+                
                 user_email = user.email
                 user.delete()
                 count += 1
@@ -196,7 +196,7 @@ class AdminAdmin(admin.ModelAdmin):
     readonly_fields = ('date_joined', 'last_login')
     
     def save_model(self, request, obj, form, change):
-        if not change:  # If creating a new admin
+        if not change:  
             obj.set_password(obj.password)  # Hash the password
         super().save_model(request, obj, form, change)
 
@@ -274,11 +274,11 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
     reset_monthly_count.short_description = "Reset monthly count for current month"
     
     def has_add_permission(self, request):
-        """Disable adding new records through this admin"""
+        
         return False
     
     def block_user_account(self, request, queryset):
-        """Admin action to block user accounts"""
+        
         count = 0
         for tracker in queryset:
             user = tracker.user
@@ -291,7 +291,6 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
     block_user_account.short_description = "Block selected user accounts"
     
     def unblock_user_account(self, request, queryset):
-        """Admin action to unblock user accounts"""
         from donation.email_config import EmailService
         from django.utils import timezone
         
@@ -328,7 +327,6 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
         for tracker in queryset:
             user = tracker.user
             try:
-                # Delete the user (this will cascade delete the profile and tracker)
                 user_email = user.email
                 user.delete()
                 count += 1
@@ -340,7 +338,7 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
     delete_user_profile.short_description = "Delete selected user profiles"
     
     def has_delete_permission(self, request, obj=None):
-        """Disable deleting records through this admin"""
+        
         return False
 
 # Register models with admin
@@ -349,8 +347,6 @@ admin.site.register(Profile, ProfileAdmin)
 admin.site.register(Admin, AdminAdmin)
 admin.site.register(MonthlyDonationTracker, MonthlyDonationTrackerAdmin)
 
-
-# Create a proxy model for blocked profiles to have a separate admin interface
 class BlockedProfiles(MonthlyDonationTracker):
     class Meta:
         proxy = True

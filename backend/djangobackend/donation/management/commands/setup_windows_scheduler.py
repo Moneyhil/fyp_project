@@ -1,5 +1,4 @@
 from django.core.management.base import BaseCommand
-import os
 import subprocess
 from pathlib import Path
 
@@ -52,21 +51,21 @@ class Command(BaseCommand):
         project_dir = Path(__file__).parent.parent.parent.parent
         manage_py = project_dir / 'manage.py'
         
-        # Get Python executable path
+        
         python_exe = subprocess.check_output('where python', shell=True, text=True).strip().split('\n')[0]
         
-        # Create the command to run
+    
         command = f'"{python_exe}" "{manage_py}" monthly_reset_job'
         
-        # Create scheduled task command (run as current user to avoid permission issues)
+        
         schtasks_cmd = [
             'schtasks', '/create',
             '/tn', task_name,
             '/tr', command,
             '/sc', 'monthly',
-            '/d', '1',  # First day of month
-            '/st', '00:01',  # At 00:01
-            '/f'  # Force create (overwrite if exists)
+            '/d', '1',  
+            '/st', '00:01',  
+            '/f'  
         ]
         
         try:
@@ -87,7 +86,7 @@ class Command(BaseCommand):
                 self.stdout.write(f'  Schedule: Monthly on 1st at 00:01')
                 self.stdout.write(f'  User: SYSTEM')
                 
-                # Show how to manage the task
+                
                 self.stdout.write('\nTask management commands:')
                 self.stdout.write(f'  View task: schtasks /query /tn "{task_name}"')
                 self.stdout.write(f'  Run now: schtasks /run /tn "{task_name}"')

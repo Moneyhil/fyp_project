@@ -71,11 +71,11 @@ export default function AdminDashboard() {
           text: "Logout",
           onPress: async () => {
             try {
-              // Get tokens from storage
+          
               const authToken = await AsyncStorage.getItem("authToken");
               const refreshToken = await AsyncStorage.getItem("refreshToken");
               
-              // Call backend logout API to blacklist tokens
+            
               if (authToken && refreshToken) {
                 try {
                   await api.post(
@@ -90,11 +90,11 @@ export default function AdminDashboard() {
                   );
                 } catch (apiError) {
                   console.log('Admin logout API error:', apiError);
-                  // Continue with logout even if API call fails
+          
                 }
               }
               
-              // Clear all tokens and user data from storage
+        
               await AsyncStorage.multiRemove(["authToken", "refreshToken", "userInfo"]);
               
               Alert.alert('Success', 'Logged out successfully!', [
@@ -105,7 +105,7 @@ export default function AdminDashboard() {
               ]);
             } catch (error) {
               console.error("Logout error:", error);
-              // Fallback: clear storage and redirect even on error
+      
               await AsyncStorage.multiRemove(["authToken", "refreshToken", "userInfo"]);
               router.replace("/signin");
             }
@@ -125,7 +125,7 @@ export default function AdminDashboard() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+  
       <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>Welcome, Admin</Text>
@@ -136,7 +136,7 @@ export default function AdminDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Stats */}
+    
       <View style={styles.statsContainer}>
         <TouchableOpacity 
           style={styles.blockedProfilesCard}

@@ -1,8 +1,6 @@
 import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../constants/API';
 import { checkAuthStatus, redirectBasedOnRole } from '../utils/authUtils';
 
 export default function index() {

@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 export default function AboutScreen() {
   return (
     <View style={styles.container}>
-      {/* Header */}
+
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton} 
@@ -22,9 +22,9 @@ export default function AboutScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Main Content */}
+        
         <View style={styles.content}>
-          {/* App Logo/Image */}
+          
           <View style={styles.imageContainer}>
             <Image 
               source={require('../assets/images/drop.png')} 
@@ -33,7 +33,7 @@ export default function AboutScreen() {
             />
           </View>
 
-          {/* App Information */}
+          
           <View style={styles.infoContainer}>
             <Text style={styles.appTitle}>Blood Donation App</Text>
             <Text style={styles.version}>Version 1.0.0</Text>
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   placeholder: {
-    width: 50, // Same width as back button for centering
+    width: 50, 
   },
   scrollView: {
     flex: 1,

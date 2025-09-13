@@ -25,7 +25,7 @@ export default function BlockedProfiles() {
       });
   
       if (response.status === 200) {
-        // Use the blocked_profiles data directly from the dedicated endpoint
+        
         setBlockedUsers(response.data.blocked_profiles);
       }
     } catch (error) {
@@ -100,7 +100,7 @@ export default function BlockedProfiles() {
 
               if (response.status === 200) {
                 Alert.alert("Success", "User deleted successfully");
-                loadBlockedUsers(); // Refresh the list
+                loadBlockedUsers(); 
               }
             } catch (error) {
               console.error("Delete user error:", error);
@@ -114,7 +114,7 @@ export default function BlockedProfiles() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -128,13 +128,13 @@ export default function BlockedProfiles() {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading blocked users...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
+    <View style={styles.container}>
+      
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton} 
@@ -146,7 +146,7 @@ export default function BlockedProfiles() {
         <View style={styles.placeholder} />
       </View>
 
-      {/* Content */}
+      
       <View style={styles.content}>
         {blockedUsers.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -201,7 +201,7 @@ export default function BlockedProfiles() {
           </>
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

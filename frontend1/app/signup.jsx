@@ -31,7 +31,7 @@ export default function Registration() {
       const { isAuthenticated, user } = await checkAuthStatus();
       
       if (isAuthenticated && user) {
-        // User is already logged in, redirect to appropriate screen
+      
         if (user.is_staff) {
           router.replace('/admindashboard');
         } else {
@@ -47,10 +47,10 @@ export default function Registration() {
   };
 
   if (isCheckingAuth) {
-    return null; // Show nothing while checking
+    return null; 
   }
 
-  // Validation schema
+  
   const validationSchema = Yup.object().shape({
     name: Yup.string()
       .trim()
@@ -93,7 +93,29 @@ export default function Registration() {
 
   const getInputStyle = (field) => touched[field] && errors[field] ? [styles.input, styles.inputError] : styles.input;
 
+  
+  const testConnection = async () => {
+    try {
+      const response = await api.get('/donation/health-check/', { timeout: 5000 });
+      console.log('Backend connection successful:', response.status);
+      return true;
+    } catch (error) {
+      console.error('Backend connection failed:', error.message);
+      Alert.alert(
+        "Backend Connection Failed", 
+        "Cannot connect to the backend server. Please ensure:\n\n• Backend server is running\n• Network connection is stable\n• Server IP is correct"
+      );
+      return false;
+    }
+  };
+
   const handleSignup = async () => {
+    
+    const isConnected = await testConnection();
+    if (!isConnected) {
+      return;
+    }
+
     setTouched({ name: true, email: true, password: true, confirmPassword: true });
     setLoading(true);
 
@@ -107,17 +129,14 @@ export default function Registration() {
         password: formData.password,
       };
 
-      console.log("Sending registration payload:", payload);
-
+    
       const response = await api.post(
         "/donation/registration/create/",
         payload
       );
 
-      console.log("Registration response:", response.data);
-
       if (response.status === 201) {
-        // Save email locally for OTP verification
+
         await AsyncStorage.setItem("pendingVerificationEmail", payload.email);
 
         Alert.alert(
@@ -127,7 +146,7 @@ export default function Registration() {
             {
               text: "OK",
               onPress: () => {
-                // Navigate to OTP screen and pass email as param
+                
                 router.push({ pathname: "/otp", params: { email: payload.email } });
               },
             },
@@ -137,19 +156,64 @@ export default function Registration() {
 
     } catch (error) {
       console.error("Signup error:", error);
-
-      if (error.name === "ValidationError") {
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      
+      
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+    
+        Alert.alert(
+          "Connection Timeout", 
+          "The server is taking too long to respond. This might be due to:\n\n• Backend server not running\n• Network connectivity issues\n• Email sending delays\n\nPlease check your connection and try again.",
+          [
+            { text: "Retry", onPress: () => handleSignup() },
+            { text: "Cancel", style: "cancel" }
+          ]
+        );
+      } else if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
+      
+        Alert.alert(
+          "Network Error", 
+          "Cannot connect to the server. Please check:\n\n• Your internet connection\n• Backend server is running\n• Server IP address is correct",
+          [
+            { text: "Retry", onPress: () => handleSignup() },
+            { text: "Cancel", style: "cancel" }
+          ]
+        );
+      } else if (error.name === "ValidationError") {
         const formErrors = {};
         error.inner.forEach(e => { formErrors[e.path] = e.message; });
         setErrors(formErrors);
         Alert.alert("Validation Error", "Please fix the errors in the form.");
       } else if (error.response) {
         const errData = error.response.data;
-        let errorMessage = errData?.error || errData?.message || "Registration failed. Please try again.";
-        if (error.response.status === 409) setErrors(prev => ({ ...prev, email: "This email is already registered" }));
-        else Alert.alert("Error", errorMessage);
+        
+      
+        if (errData.password) {
+          setErrors(prev => ({ ...prev, password: Array.isArray(errData.password) ? errData.password[0] : errData.password }));
+          Alert.alert("Password Error", Array.isArray(errData.password) ? errData.password[0] : errData.password);
+        } else if (errData.email) {
+          setErrors(prev => ({ ...prev, email: Array.isArray(errData.email) ? errData.email[0] : errData.email }));
+          Alert.alert("Email Error", Array.isArray(errData.email) ? errData.email[0] : errData.email);
+        } else if (errData.name) {
+          setErrors(prev => ({ ...prev, name: Array.isArray(errData.name) ? errData.name[0] : errData.name }));
+          Alert.alert("Name Error", Array.isArray(errData.name) ? errData.name[0] : errData.name);
+        } else {
+          let errorMessage = errData?.error || errData?.message || "Registration failed. Please try again.";
+          if (error.response.status === 409) {
+            setErrors(prev => ({ ...prev, email: "This email is already registered" }));
+            Alert.alert("Email Already Exists", "This email is already registered. Please use a different email or try logging in.");
+          } else if (error.response.status === 400) {
+            Alert.alert("Validation Error", "Please check your input and try again.");
+          } else {
+            Alert.alert("Error", errorMessage);
+          }
+        }
       } else {
-        Alert.alert("Error", "An unexpected error occurred. Please try again.");
+        Alert.alert(
+          "Unexpected Error", 
+          "An unexpected error occurred. Please try again.\n\nIf the problem persists, please contact support."
+        );
       }
     } finally {
       setLoading(false);

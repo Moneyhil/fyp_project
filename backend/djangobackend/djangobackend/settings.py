@@ -36,7 +36,7 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',  # Required for Django admin interface
+    'django.contrib.sessions',  
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
@@ -55,7 +55,6 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# CORS settings for API-only application
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = False
 CORS_ALLOWED_ORIGINS = [
@@ -105,6 +104,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -127,7 +129,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# FIXED typo: DEFUALT_RENDERER_CLASSES → DEFAULT_RENDERER_CLASSES
+
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',
@@ -137,9 +139,8 @@ REST_FRAMEWORK = {
     )
 }
 
-AUTH_USER_MODEL = 'donation.User' # replace "accounts" with your app name
+AUTH_USER_MODEL = 'donation.User' 
 
-# Cache configuration (for OTP storage)
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -147,22 +148,21 @@ CACHES = {
     }
 }
 
-# Rate limiting
+
 RATELIMIT_ENABLE = True
 
-# URL Configuration for email confirmations
+
 BASE_URL = 'http://192.168.100.16:8000'
 FRONTEND_BASE_URL = 'http://192.168.100.16:8081'
 
-# JWT Configuration for persistent login
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=30),  # Access token valid for 30 days
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=90),  # Refresh token valid for 90 days
-    'ROTATE_REFRESH_TOKENS': True,  # Generate new refresh token on refresh
-    'BLACKLIST_AFTER_ROTATION': True,  # Blacklist old refresh tokens
-    'UPDATE_LAST_LOGIN': True,  # Update last_login field on token refresh
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=30), 
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=90),  
+    'ROTATE_REFRESH_TOKENS': True,  
+    'BLACKLIST_AFTER_ROTATION': True,  
+    'UPDATE_LAST_LOGIN': True,  
     
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,

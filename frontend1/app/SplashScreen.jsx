@@ -21,12 +21,12 @@ export default function SplashScreen() {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 1000,
-        useNativeDriver: false, // Changed from true to false
+        useNativeDriver: false, 
       }),
       Animated.timing(scaleAnim, {
         toValue: 1,
         duration: 1000,
-        useNativeDriver: false, // Changed from true to false
+        useNativeDriver: false, 
       }),
     ]).start();
   }, []);
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 16,
-    color: '#718096', // Gray text for tagline
+    color: '#718096', 
     textAlign: 'center',
     fontStyle: 'italic',
   },

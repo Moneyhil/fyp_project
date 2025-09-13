@@ -24,7 +24,7 @@ export default function Login() {
     checkAuthAndRedirect();
   }, []);
 
-  // Replace the checkAuthAndRedirect function with:
+  
   const checkAuthAndRedirect = async () => {
     try {
       const { isAuthenticated, user } = await checkAuthStatus();
@@ -45,7 +45,7 @@ export default function Login() {
   };
 
   if (isCheckingAuth) {
-    return null; // Show nothing while checking
+    return null; 
   }
 
   // Validation schema
@@ -88,38 +88,38 @@ export default function Login() {
         }
       );
 
-      console.log('Login response:', response.data); // Add this for debugging
+      console.log('Login response:', response.data); 
 
       if (response.status === 200) {
         const { token, access_token, refresh_token, user } = response.data;
         
-        // Use the correct token field
+        
         const authToken = token || access_token;
         
-        console.log('Auth token:', authToken); // Add this for debugging
-        console.log('Refresh token:', refresh_token); // Add this for debugging
+        console.log('Auth token:', authToken); 
+        console.log('Refresh token:', refresh_token); 
         
         if (authToken && refresh_token && user) {
-          // Save authentication data
+          
           await AsyncStorage.setItem('authToken', authToken);
           await AsyncStorage.setItem('refreshToken', refresh_token);
           await AsyncStorage.setItem('userInfo', JSON.stringify(user));
         }
-        console.log('User:', user); // Add this for debugging
+        console.log('User:', user); 
 
         if (!authToken) {
           Alert.alert("Error", "No authentication token received");
           return;
         }
 
-        // Save tokens and user info for persistent login
+        
         await AsyncStorage.setItem('authToken', authToken);
         await AsyncStorage.setItem('refreshToken', refresh_token);
         await AsyncStorage.setItem('userInfo', JSON.stringify(user));
         
         Alert.alert("Success", "Login successful!");
         
-        // Redirect based on user type
+      
         if (user.is_staff) {
           router.replace('/admindashboard');
         } else {

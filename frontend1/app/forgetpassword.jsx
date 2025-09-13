@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import api from '../constants/API';
 import { checkAuthStatus } from '../utils/authUtils';
 
@@ -34,7 +34,7 @@ export default function ForgetPassword() {
   };
 
   if (isCheckingAuth) {
-    return null; // Show nothing while checking
+    return null; 
   }
 
   const handleResetPassword = async () => {
@@ -43,7 +43,7 @@ export default function ForgetPassword() {
       return;
     }
 
-    // Email validation
+  
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       Alert.alert('Validation', 'Please enter a valid email address');

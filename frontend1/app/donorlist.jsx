@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import {  View,  Text,  StyleSheet,  FlatList,  TouchableOpacity,  Alert,  ActivityIndicator} from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import api from '../constants/API';
 
@@ -79,7 +70,7 @@ export default function DonorListScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -93,12 +84,12 @@ export default function DonorListScreen() {
           <ActivityIndicator size="large" color="#d40000" />
           <Text style={styles.loadingText}>Loading donors...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton} 
@@ -131,7 +122,7 @@ export default function DonorListScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

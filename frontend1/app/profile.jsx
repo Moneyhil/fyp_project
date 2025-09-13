@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, Alert } from "react-native";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform,  ScrollView, Alert } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -80,7 +80,7 @@ export default function ProfileScreen() {
       case "bloodGroup":
         if (!value) error = "Blood group is required";
         break;
-      case "role": // <-- NEW VALIDATION
+      case "role": 
         if (!value) error = "Please select if you are a Donor or Needer";
         break;
     }
@@ -111,7 +111,7 @@ export default function ProfileScreen() {
     }
 
     try {
-      // Get user email from storage
+      
       const userString = await AsyncStorage.getItem("userInfo");
       if (!userString) {
         Alert.alert("Error", "User not found. Please login again.");
@@ -122,7 +122,7 @@ export default function ProfileScreen() {
       const user = JSON.parse(userString);
       const email = user.email;
 
-      // Prepare profile data
+      
       const profileData = {
         email: email,
         first_name: formData.firstName,
@@ -135,7 +135,7 @@ export default function ProfileScreen() {
         role: formData.role,
       };
 
-      // Send profile data to backend
+      
       const response = await createProfile(profileData);
 
       if (response.status === 201 || response.status === 200) {
@@ -169,7 +169,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -279,7 +279,7 @@ export default function ProfileScreen() {
       />
       {touched.bloodGroup && errors.bloodGroup && <Text style={styles.errorText}>{errors.bloodGroup}</Text>}
 
-       {/* Donor/Needer */}
+       
       <Text style={styles.label}>Role</Text>
       <DropDownPicker
         open={roleOpen}
@@ -303,7 +303,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

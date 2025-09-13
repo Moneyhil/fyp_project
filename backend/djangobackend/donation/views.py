@@ -1,10 +1,10 @@
-# Removed unused session-based auth imports - using JWT tokens instead
 from django.http import JsonResponse
 from django.views import View
 from django.core.mail import send_mail
 from django.conf import settings
 from django.core.cache import cache
 from django.utils.decorators import method_decorator
+from django.utils import timezone
 from rest_framework.generics import CreateAPIView
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
@@ -16,7 +16,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 import secrets
 import logging
 from django.utils.decorators import method_decorator
-# Removed unused session-based auth decorators - using JWT-only authentication
 
 from .models import User, Profile, DonationRequest, CallLog, Admin, MonthlyDonationTracker
 from .serializers import (
@@ -28,16 +27,25 @@ from .serializers import (
     ProfileSerializer,
     DonationRequestSerializer,
     CallLogSerializer,
-
     DonationRequestResponseSerializer,
 )
 from .services import DonationRequestService
 
 logger = logging.getLogger(__name__)
 
-# =====================================================
-# 🔹 ADMIN DECORATOR
-# =====================================================
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """Simple health check endpoint"""
+    if request.method == 'GET':
+        return JsonResponse({
+            'status': 'healthy',
+            'message': 'Backend server is running'
+        })
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+# ADMIN 
 
 def admin_required(view_func):
     """Decorator to ensure only admin users can access the view"""
@@ -59,7 +67,7 @@ def admin_required(view_func):
             # Validate token
             UntypedToken(token)
             
-            # Decode token to get user info
+            
             decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
             user_id = decoded_token.get('user_id')
             is_admin = decoded_token.get('is_admin', False)
@@ -69,7 +77,7 @@ def admin_required(view_func):
             if is_admin and admin_id:
                 try:
                     admin = Admin.objects.get(id=admin_id, is_active=True)
-                    # Store admin info in request for use in view
+                    
                     request.admin = admin
                     return view_func(request, *args, **kwargs)
                 except Admin.DoesNotExist:
@@ -84,14 +92,12 @@ def admin_required(view_func):
         
     return _wrapped_view
 
-# =====================================================
-# 🔹 ADMIN PANEL VIEWS (Improved)
-# =====================================================
+# ADMIN PANEL
 
 @method_decorator(ratelimit(key='ip', rate='5/m'), name='dispatch')
 class AdminLoginView(View):
     def post(self, request):
-        # Handle both JSON and form data
+        
         if request.content_type == 'application/json':
             import json
             try:
@@ -112,21 +118,18 @@ class AdminLoginView(View):
                 admin.last_login = timezone.now()
                 admin.save()
                 
-                # Generate JWT tokens manually without using RefreshToken.for_user
-                # to avoid database foreign key constraint issues
                 from rest_framework_simplejwt.tokens import AccessToken
                 from django.conf import settings
                 import jwt
                 from datetime import datetime, timedelta
                 
-                # Create custom JWT payload for admin
                 import uuid
                 
                 access_jti = str(uuid.uuid4())
                 refresh_jti = str(uuid.uuid4())
                 
                 payload = {
-                    'user_id': admin.id + 10000,  # Offset to identify as admin
+                    'user_id': admin.id + 10000,  
                     'email': admin.email,
                     'is_staff': True,
                     'is_admin': True,
@@ -137,10 +140,10 @@ class AdminLoginView(View):
                     'token_type': 'access'
                 }
                 
-                # Generate access token manually
+        
                 access_token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
                 
-                # Create refresh token payload
+    
                 refresh_payload = {
                     'user_id': admin.id + 10000,
                     'email': admin.email,
@@ -154,24 +157,23 @@ class AdminLoginView(View):
                 
                 refresh_token = jwt.encode(refresh_payload, settings.SECRET_KEY, algorithm='HS256')
                 
-                # Store the refresh token in OutstandingToken for blacklisting
+    
                 try:
                     from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
                     from django.contrib.auth import get_user_model
                     
-                    # Create a temporary user object for the token (required by OutstandingToken)
                     User = get_user_model()
                     temp_user, created = User.objects.get_or_create(
                         id=admin.id + 10000,
                         defaults={
                             'email': f'admin_{admin.id}@temp.local',
                             'name': f'Admin {admin.name}',
-                            'is_active': False,  # Mark as inactive to avoid conflicts
+                            'is_active': False,  
                             'is_verified': True
                         }
                     )
                     
-                    # Store the outstanding token
+        
                     OutstandingToken.objects.create(
                         user=temp_user,
                         jti=refresh_jti,
@@ -180,7 +182,7 @@ class AdminLoginView(View):
                         expires_at=datetime.utcnow() + timedelta(days=90)
                     )
                 except Exception as e:
-                    # If storing fails, continue without it (logout will still work)
+        
                     print(f"Failed to store outstanding token: {e}")
                 
                 return JsonResponse({
@@ -204,7 +206,7 @@ class AdminLoginView(View):
 class AdminLogoutView(View):
     @method_decorator(ratelimit(key='ip', rate='5/m'))
     def post(self, request):
-        # Handle both JSON and form data
+
         if request.content_type == 'application/json':
             import json
             try:
@@ -215,7 +217,7 @@ class AdminLogoutView(View):
         else:
             refresh_token = request.POST.get("refresh_token")
         
-        # Check for JWT token in Authorization header
+        
         auth_header = request.META.get('HTTP_AUTHORIZATION')
         if auth_header and auth_header.startswith('Bearer '):
             try:
@@ -250,10 +252,10 @@ class AdminLogoutView(View):
                                     outstanding_token = OutstandingToken.objects.get(jti=jti)
                                     BlacklistedToken.objects.get_or_create(token=outstanding_token)
                                 except OutstandingToken.DoesNotExist:
-                                    # Token not found in outstanding tokens, that's okay
+                                    
                                     pass
                         except Exception as e:
-                            # If blacklisting fails, continue with logout
+                            
                             print(f"Token blacklisting failed: {e}")
                     
                     return JsonResponse({"message": "Admin logged out successfully"})
@@ -290,7 +292,7 @@ class AdminForgotPasswordView(View):
 class AdminCreateView(View):
     @method_decorator(admin_required)
     def post(self, request):
-        # Admin authentication is handled by the admin_required decorator
+        
         
         name = request.POST.get("name", "").strip()
         email = request.POST.get("email", "").lower().strip()
@@ -303,7 +305,7 @@ class AdminCreateView(View):
         if len(password) < 8:
             return JsonResponse({"error": "Password must be at least 8 characters long"}, status=400)
         
-        # Check if admin with this email already exists
+        
         if Admin.objects.filter(email=email).exists():
             return JsonResponse({"error": "Admin with this email already exists"}, status=400)
         
@@ -313,7 +315,7 @@ class AdminCreateView(View):
                 name=name,
                 email=email,
                 is_active=True,
-                is_superuser=False  # New admins are not superusers by default
+                is_superuser=False  
             )
             admin.set_password(password)
             admin.save()
@@ -385,28 +387,25 @@ class BlockUnblockUserView(View):
 class BlockedProfilesView(View):
     @method_decorator([admin_required, ratelimit(key='ip', rate='60/m')])
     def get(self, request):
-        """
-        Fetch blocked profiles from MonthlyDonationTracker where users have completed 3+ calls
-        Shows both currently blocked and previously blocked users
-        """
+    
         try:
             from django.utils import timezone
             
-            # Get current month
+            
             current_month = timezone.now().date().replace(day=1)
             
-            # Get blocked profiles from MonthlyDonationTracker (current and previous months)
+            
             blocked_trackers = MonthlyDonationTracker.objects.filter(
                 monthly_goal_completed=True,
                 completed_calls_count__gte=3,
-                # Remove the user__is_active=False filter to show all blocked profiles
+                
             ).select_related('user').order_by('-goal_completed_at')
             
             blocked_profiles = []
             for tracker in blocked_trackers:
                 user = tracker.user
                 
-                # Determine current blocking status
+            
                 is_currently_blocked = not user.is_active
                 blocking_status = "Currently Blocked" if is_currently_blocked else "Previously Blocked (Unblocked)"
                 
@@ -450,9 +449,9 @@ class RevokeAccessView(View):
         except User.DoesNotExist:
             return JsonResponse({'error': 'User not found'}, status=404)
 
-# =====================================================
-# 🔹 AUTH + OTP VIEWS (Model-Aligned)
-# =====================================================
+
+# AUTH + OTP 
+
 
 class UserCreate(CreateAPIView):
     queryset = User.objects.all()
@@ -469,18 +468,10 @@ class UserCreate(CreateAPIView):
             logger.error(f"Registration validation failed: {serializer.errors}")
             logger.error(f"Request data: {data}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        serializer.is_valid(raise_exception=True)
-        
-        if User.objects.filter(email=data['email']).exists():
-            return Response(
-                {"error": "Email is already registered"},
-                status=status.HTTP_409_CONFLICT
-            )
 
-        user = serializer.save()
         try:
-            raw_otp = user.generate_otp()  # Using model's method
+            user = serializer.save()
+            raw_otp = user.generate_otp()
             
             send_mail(
                 "Email Verification Required",
@@ -500,9 +491,8 @@ class UserCreate(CreateAPIView):
             )
         except Exception as e:
             logger.error(f"Registration error: {str(e)}")
-            user.delete()  # Rollback user creation
             return Response(
-                {"error": "Failed to complete registration"},
+                {"error": "Registration failed. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 @api_view(["POST"])
@@ -515,7 +505,7 @@ def send_otp(request):
     serializer = SendOTPSerializer(data=data)
     serializer.is_valid(raise_exception=True)
     
-    # Get the actual user instance
+
     try:
         user = User.objects.get(email=serializer.validated_data['email'])
     except User.DoesNotExist:
@@ -576,9 +566,8 @@ class VerifyOTPView(APIView):
             status=status.HTTP_200_OK
         )
 
-# =====================================================
-# 🔹 USER PASSWORD RESET VIEWS
-# =====================================================
+# USER PASSWORD RESET 
+
 
 @method_decorator(ratelimit(key='ip', rate='5/m'), name='dispatch')
 class UserForgotPasswordView(APIView):
@@ -697,7 +686,7 @@ class LogoutView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Blacklist the refresh token
+            
             token = RefreshToken(refresh_token)
             token.blacklist()
             
@@ -714,9 +703,8 @@ class LogoutView(APIView):
             )
 
 
-# =====================================================
-# 🔹 PROFILE MANAGEMENT VIEWS
-# =====================================================
+# PROFILE MANAGEMENT
+
 
 class ProfileCreateView(APIView):
     permission_classes = [AllowAny]
@@ -725,7 +713,7 @@ class ProfileCreateView(APIView):
     def post(self, request):
         """Create or update user profile."""
         try:
-            # Get user from email in request
+
             email = request.data.get('email')
             if not email:
                 return Response(
@@ -741,10 +729,10 @@ class ProfileCreateView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
             
-            # Get or create profile
+        
             profile, created = Profile.objects.get_or_create(user=user)
             
-            # Update profile with request data
+            
             serializer = ProfileSerializer(profile, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -835,7 +823,7 @@ class DonorSearchView(APIView):
                 role='donor'
             ).select_related('user')
             
-            # Serialize the donor profiles
+            
             serializer = ProfileSerializer(donor_profiles, many=True)
             
             return Response(
@@ -867,18 +855,13 @@ class DonationRequestCreateView(APIView):
         try:
             serializer = DonationRequestSerializer(data=request.data, context={'request': request})
             if serializer.is_valid():
-                # Use service to create donation request with notifications
-                donation_request = DonationRequestService.create_donation_request_with_notification(
-                    requester=request.user,
-                    donor=serializer.validated_data['donor'],
-                    blood_group=serializer.validated_data['blood_group'],
-                    notes=serializer.validated_data.get('notes', '')
-                )
+                # Use the serializer's save method which handles the requester assignment
+                donation_request = serializer.save()
                 
                 return Response(
                     {
                         "success": True,
-                        "message": "Donation request created and notification sent",
+                        "message": "Donation request created successfully",
                         "donation_request_id": donation_request.id
                     },
                     status=status.HTTP_201_CREATED
@@ -934,7 +917,7 @@ class DonationRequestResponseView(APIView):
             donation_request = DonationRequest.objects.get(id=request_id)
             user = request.user
             
-            # Check if user is authorized to respond
+            
             if user != donation_request.requester and user != donation_request.donor:
                 return Response(
                     {"error": "You are not authorized to respond to this request"},
@@ -946,26 +929,25 @@ class DonationRequestResponseView(APIView):
                 response = serializer.validated_data['response']
                 notes = serializer.validated_data.get('notes', '')
                 
-                # Update the appropriate response field
+                
                 if user == donation_request.requester:
                     donation_request.user_response = response
+                    
+                   
+                    
                 elif user == donation_request.donor:
                     donation_request.donor_response = response
+                    
                 
-                # Update status based on responses
+            
                 donation_request.update_status()
                 
-                # Send notification to the other party
-                DonationRequestService.send_response_notification(
-                    donation_request=donation_request,
-                    response=response,
-                    notes=notes
-                )
+              
                 
                 return Response(
                     {
                         "success": True,
-                        "message": "Response recorded and notification sent",
+                        "message": "Response recorded successfully",
                         "status": donation_request.status
                     },
                     status=status.HTTP_200_OK
@@ -987,24 +969,6 @@ class DonationRequestResponseView(APIView):
             )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class MonthlyTrackerView(APIView):
     permission_classes = [AllowAny]
 
@@ -1012,13 +976,13 @@ class MonthlyTrackerView(APIView):
     def get(self, request):
         """Get monthly donation tracker for a user."""
         try:
-            # Log the incoming request for debugging
+            
             logger.info(f"Monthly tracker request - Query params: {dict(request.query_params)}")
             logger.info(f"Request URL: {request.get_full_path()}")
             
             user_email = request.query_params.get('user_email')
             
-            # Enhanced validation with more specific error messages
+            
             if not user_email or str(user_email).strip() in ['undefined', 'null', '']:
                 logger.warning(f"Monthly tracker request missing or invalid user_email parameter. Received: '{user_email}'. Available params: {list(request.query_params.keys())}")
                 return Response(
@@ -1031,8 +995,7 @@ class MonthlyTrackerView(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            
-            # Validate email format and strip whitespace
+    
             user_email = user_email.strip()
             if not user_email:
                 logger.warning("Monthly tracker request with empty user_email parameter")
@@ -1055,7 +1018,7 @@ class MonthlyTrackerView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Get the user
+        
             try:
                 user = User.objects.get(email=user_email)
                 logger.info(f"Found user for monthly tracker: {user.email}")
@@ -1066,7 +1029,7 @@ class MonthlyTrackerView(APIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # Get or create current month tracker
+            
             from .models import MonthlyDonationTracker
             try:
                 tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(user)
@@ -1097,79 +1060,50 @@ class MonthlyTrackerView(APIView):
                 {"error": "Failed to get monthly tracker"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-
-
-
-
-
-
-
+        
 class DonorResponseView(APIView):
+
     permission_classes = [AllowAny]
-
+    
     @method_decorator(ratelimit(key='ip', rate='10/m'))
-    def get(self, request, request_id, response):
-        """Handle donor Yes/No response via URL link."""
-        try:
-            # Validate response
-            if response not in ['yes', 'no']:
-                return Response(
-                    {"error": "Invalid response. Must be 'yes' or 'no'"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Get the donation request
-            try:
-                donation_request = DonationRequest.objects.get(id=request_id)
-            except DonationRequest.DoesNotExist:
-                return Response(
-                    {"error": "Donation request not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            # Update donor response
-            donor_agreed = response == 'yes'
-            donation_request.donor_response = donor_agreed
-            donation_request.update_status()
-            
-            # Check if both user and donor agreed
-            count_completed = False
-            if donation_request.user_response is True and donation_request.donor_response is True:
-                # Both agreed - complete one count
-                count_completed = True
-                donation_request.status = 'completed'
-                donation_request.save()
-                
-                # Update monthly tracker for the requester
-                from .models import MonthlyDonationTracker
-                tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(donation_request.requester)
-                goal_completed = tracker.increment_call_count()
-                
-            # Return JSON response
-            if count_completed:
-                message = f"🎉 Count Completed! Both you and {donation_request.requester.name} have agreed. One count has been completed for the requester. Please coordinate immediately for the blood donation process."
-                urgency_level = "high"
-            else:
-                message = f"✅ Response Recorded. You have responded '{response.upper()}' to the blood donation request. The requester has been notified."
-                urgency_level = "normal"
-            
-            return Response({
-                "success": True,
-                "message": message,
-                "response": response,
-                "count_completed": count_completed,
-                "urgency_level": urgency_level,
-                "requester_name": donation_request.requester.name if count_completed else None
-            }, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            logger.error(f"Error processing donor response: {str(e)}")
+    def get(self, request, request_id):
+        response = request.GET.get('response')
+        
+        if response not in ['yes', 'no']:
             return Response(
-                {"error": "An error occurred while processing your response"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Invalid response. Must be 'yes' or 'no'"},
+                status=status.HTTP_400_BAD_REQUEST
             )
-
+        
+        try:
+            
+            donation_request = DonationRequest.objects.get(id=request_id)
+        except DonationRequest.DoesNotExist:
+            return Response(
+                {"error": "Donation request not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Update donor response
+        donor_agreed = response == 'yes'
+        donation_request.donor_response = donor_agreed
+        donation_request.update_status()
+        donation_request.save()
+ 
+        
+        # Check if both parties have agreed
+        if donation_request.user_response is True and donation_request.donor_response is True:
+            donation_request.status = 'completed'
+            donation_request.save()
+            message = f"Thank you! Your response has been recorded. Both parties have agreed."
+        else:
+            message = f"Thank you for your response. You have responded '{response.upper()}' to the blood donation request."
+        
+        return Response({
+            "message": message,
+            "status": donation_request.status,
+            "response_recorded": response
+        })
 
 class CallLogCreateView(APIView):
     permission_classes = [AllowAny]
@@ -1207,7 +1141,7 @@ class SendDonorNotificationView(APIView):
     
     @method_decorator(ratelimit(key='ip', rate='10/m'))
     def post(self, request):
-        """Send confirmation email to donor after call ends."""
+        """Send confirmation email to donor only when user selects 'yes' after call ends."""
         try:
             from .email_config import EmailService
             from django.utils import timezone
@@ -1229,37 +1163,51 @@ class SendDonorNotificationView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
             
-            # Update call log with initial response from modal
-            if donor_agreed is not None:
-                call_log.donor_email_response = 'yes' if donor_agreed else 'no'
+            # Only send email if user agreed (selected 'yes')
+            if donor_agreed is True:
+                call_log.donor_email_response = 'yes'
                 call_log.email_response_at = timezone.now()
-            
-            # Send confirmation email to donor
-            success, message = EmailService.send_donor_confirmation_email(
-                donor_user=call_log.receiver,
-                caller_user=call_log.caller,
-                call_log_id=call_log.id
-            )
-            
-            if success:
-                call_log.email_sent = True
-                call_log.email_sent_at = timezone.now()
-                call_log.save()
                 
-                logger.info(f"Confirmation email sent to donor {call_log.receiver.email} for call {call_log.id}")
+                # Send donor confirmation email with increment functionality
+                success, message = EmailService.send_donor_confirmation_email(
+                    donor_user=call_log.receiver,
+                    caller_user=call_log.caller,
+                    call_log_id=call_log.id
+                )
+                
+                if success:
+                    call_log.email_sent = True
+                    call_log.email_sent_at = timezone.now()
+                    call_log.save()
+                    
+                    logger.info(f"Confirmation email sent to donor {call_log.receiver.email} for call {call_log.id}")
+                    
+                    return Response(
+                        {
+                            "success": True,
+                            "message": "Donor confirmation email sent successfully"
+                        },
+                        status=status.HTTP_200_OK
+                    )
+                else:
+                    logger.error(f"Failed to send confirmation email: {message}")
+                    return Response(
+                        {"error": f"Failed to send email: {message}"},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+            else:
+                # User selected 'no' - no email sent
+                if donor_agreed is False:
+                    call_log.donor_email_response = 'no'
+                    call_log.email_response_at = timezone.now()
+                    call_log.save()
                 
                 return Response(
                     {
                         "success": True,
-                        "message": "Confirmation email sent successfully"
+                        "message": "No email sent - user declined donation request"
                     },
                     status=status.HTTP_200_OK
-                )
-            else:
-                logger.error(f"Failed to send confirmation email: {message}")
-                return Response(
-                    {"error": f"Failed to send email: {message}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
             
         except Exception as e:
@@ -1300,13 +1248,12 @@ class DonorEmailConfirmationView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
             
-            # Update call log with donor response
+        
             call_log.donor_response = response
             call_log.save()
             
             count_completed = False
             
-            # OPTION 3: Direct Count Increment - Always increment when donor says 'yes'
             if response == 'yes':
                     try:
                         from .models import MonthlyDonationTracker
@@ -1316,26 +1263,25 @@ class DonorEmailConfirmationView(APIView):
                         goal_completed = tracker.increment_call_count()
                         count_completed = True
                         
-                        # Check if user has reached monthly limit and block them
+                
                         if tracker.completed_calls_count >= 3 and not call_log.caller.is_active == False:
-                            # Block the user account
+                            
                             call_log.caller.is_active = False
                             call_log.caller.save()
                             
                             logger.info(f"User {call_log.caller.email} blocked after completing monthly goal")
                             
-                        # Don't call tracker.save() again as increment_call_count() already saved it
+            
                         logger.info(f"Count incremented for requester {call_log.caller.email}. New count: {tracker.completed_calls_count}")
                     except Exception as e:
                         logger.error(f"Error incrementing count: {str(e)}")
-            
-            # Still try to update donation request if it exists (for completeness)
+        
             if response == 'yes':
                 try:
                     donation_request = DonationRequest.objects.get(
                         requester=call_log.requester,
                         donor=call_log.receiver,
-                        user_response=True  # This was the problematic condition
+                        user_response=True  
                     )
                     
                     if donation_request.status == 'pending':
@@ -1352,10 +1298,12 @@ class DonorEmailConfirmationView(APIView):
                 except DonationRequest.DoesNotExist:
                     logger.warning(f"No matching donation request found for call {call_log.id} - but count was still incremented")
             
-            # Prepare response message
+            
             if response == 'yes':
                 if count_completed:
                     message = f"Dear {call_log.receiver.name}, your generosity means the world to us! Your agreement to donate blood has been recorded and one count has been completed for the requester. You are truly a hero - your donation will save lives. We will contact you soon with donation details. Thank you for being an angel! "
+                else:
+                    message = f"Dear {call_log.receiver.name}, thank you for agreeing to donate blood! Your response has been recorded. You are truly a hero - your donation will save lives. We will contact you soon with donation details."
             else:
                 message = f"Thank you {call_log.receiver.name} for your response. We understand you cannot donate at this time."
             

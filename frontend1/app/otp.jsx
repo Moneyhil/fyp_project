@@ -1,18 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert, 
-  Dimensions,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Animated,
-  ScrollView
-} from 'react-native';
+import {   View,   Text,   TextInput,   TouchableOpacity,   StyleSheet,   Alert,   Dimensions,  ActivityIndicator,  KeyboardAvoidingView,  Platform,  Animated,  ScrollView} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,10 +33,10 @@ export default function OTPVerification() {
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 500,
-      useNativeDriver: false, // Changed from true to false
+      useNativeDriver: false, 
     }).start();
 
-    // Start countdown for resend
+    
     startCountdown();
   }, []);
 
@@ -62,7 +49,7 @@ export default function OTPVerification() {
   }, [countdown]);
 
   const startCountdown = () => {
-    setCountdown(60); // 60 seconds countdown
+    setCountdown(60); 
   };
 
   const handleOtpChange = (text, index) => {
@@ -70,15 +57,15 @@ export default function OTPVerification() {
     newOtp[index] = text;
     setOtp(newOtp);
 
-    // Auto-focus next input
+    
     if (text && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-submit when all digits are entered
+    
     const fullOtp = newOtp.join('');
     if (fullOtp.length === 6 && !fullOtp.includes('') && !isSubmitting && !loading) {
-      // Small delay to ensure UI updates before submission
+      
       setTimeout(() => {
         if (!isSubmitting && !loading) {
           handleVerifyOTP(fullOtp);
@@ -86,11 +73,11 @@ export default function OTPVerification() {
       }, 100);
     }
 
-    setError(''); // Clear error when user types
+    setError(''); 
   };
 
   const handleKeyPress = (e, index) => {
-    // Handle backspace
+    
     if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
@@ -122,17 +109,17 @@ export default function OTPVerification() {
       console.log('OTP verification response:', response.data);
 
       if (response.status === 200) {
-        // Clear pending verification email
+    
         await AsyncStorage.removeItem('pendingVerificationEmail');
         
-        // Store user data and tokens properly
+        
         const { user, token, access_token, refresh_token } = response.data;
         
         if (user) {
           await AsyncStorage.setItem('userInfo', JSON.stringify(user));
         }
         
-        // Handle different token response formats
+  
         const authToken = token || access_token;
         if (authToken) {
           await AsyncStorage.setItem('authToken', authToken);
@@ -161,7 +148,7 @@ export default function OTPVerification() {
         let errorMessage = 'Verification failed. Please try again.';
         
         if (errorData) {
-          // Handle different error response formats
+    
           if (errorData.error) {
             errorMessage = Array.isArray(errorData.error) ? errorData.error[0] : errorData.error;
           } else if (errorData.otp) {
@@ -208,8 +195,8 @@ export default function OTPVerification() {
           [{ text: "OK" }]
         );
         startCountdown();
-        setOtp(['', '', '', '', '', '']); // Clear OTP inputs
-        inputRefs.current[0]?.focus(); // Focus first input
+        setOtp(['', '', '', '', '', '']); 
+        inputRefs.current[0]?.focus(); 
       }
     } catch (error) {
       console.error('Resend OTP error:', error);
@@ -219,7 +206,7 @@ export default function OTPVerification() {
         let errorMessage = 'Failed to resend OTP. Please try again.';
         
         if (errorData) {
-          // Handle different error response formats
+        
           if (errorData.error) {
             errorMessage = Array.isArray(errorData.error) ? errorData.error[0] : errorData.error;
           } else if (errorData.email) {

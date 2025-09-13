@@ -3,13 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const api = axios.create({
   baseURL: 'http://192.168.100.16:8000',
-  timeout: 10000,
+  timeout: 40000, 
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add auth token
+
 api.interceptors.request.use(
   async (config) => {
     try {
@@ -40,21 +40,21 @@ api.interceptors.response.use(
         const refreshToken = await AsyncStorage.getItem('refreshToken');
         if (refreshToken) {
           const refreshResponse = await axios.post(
-            `${api.defaults.baseURL}/donation/token/refresh/`,  // Use baseURL instead of hardcoded
+            `${api.defaults.baseURL}/donation/token/refresh/`,  
             { refresh: refreshToken }
           );
           
           const { access } = refreshResponse.data;
           await AsyncStorage.setItem('authToken', access);
           
-          // Retry original request with new token
+        
           originalRequest.headers.Authorization = `Bearer ${access}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
+    
         await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'userInfo']);
-        // You might want to emit an event here to redirect to login
+        
       }
     }
     
@@ -79,7 +79,7 @@ export const getMonthlyTracker = (email) => {
   
   return api.get(url);
 };
-export const createDonationRequest = (requestData) => api.post('/donation/requests/', requestData);
+export const createDonationRequest = (requestData) => api.post('/donation/donation-requests/create/', requestData);
 export const createCallLog = (callData) => api.post('/donation/call-logs/create/', callData);
 export const sendDonorNotification = (notificationData) => 
   api.post('/donation/messages/send-donor-notification/', notificationData);

@@ -13,7 +13,7 @@ import datetime
 
 class UserManager(BaseUserManager):
     def _validate_email(self, email):
-        """Validate email format."""
+        
         try:
             validate_email(email)
             return True
@@ -21,9 +21,7 @@ class UserManager(BaseUserManager):
             return False
 
     def create_user(self, email, name, password=None, **extra_fields):
-        """
-        Creates and saves a User with the given email, name and password.
-        """
+        
         if not email:
             raise ValueError(_('Users must have an email address'))
         
@@ -41,9 +39,7 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, name, password=None, **extra_fields):
-        """
-        Creates and saves a superuser with the given email, name and password.
-        """
+    
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
@@ -56,10 +52,7 @@ class UserManager(BaseUserManager):
         return self.create_user(email, name, password, **extra_fields)
 
 class User(AbstractBaseUser, PermissionsMixin):
-    """
-    Custom user model that uses email as the unique identifier 
-    instead of username, with OTP verification support.
-    """
+    
     name = models.CharField(_('Full Name'), max_length=150)
     email = models.EmailField(_('Email Address'), unique=True)
     
@@ -104,10 +97,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.email = self.email.lower()
 
     def generate_otp(self, expiry_minutes=10):
-        """
-        Generates a time-based OTP and stores its hash.
-        Returns the raw OTP code for sending to user.
-        """
+        
         raw_otp = ''.join(secrets.choice('0123456789') for _ in range(6))
         self.otp_secret = hashlib.sha256(raw_otp.encode()).hexdigest()
         self.otp_created_at = timezone.now()
@@ -116,10 +106,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         return raw_otp
 
     def verify_otp(self, otp):
-        """
-        Verifies the provided OTP against the stored hash.
-        Returns tuple of (success: bool, message: str).
-        """
+
         if not self.otp_secret or not self.otp_expires_at:
             return False, _('No OTP request found')
             
@@ -137,7 +124,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         return True, _('Verification successful')
 
     def clear_otp(self):
-        """Clears any existing OTP data."""
+        
         self.otp_secret = None
         self.otp_created_at = None
         self.otp_expires_at = None
@@ -176,7 +163,7 @@ class Admin(models.Model):
         return self.email
 
     def clean(self):
-        """Normalize and validate model before saving."""
+        
         super().clean()
         if self.email:
             self.email = self.email.lower()
@@ -187,15 +174,12 @@ class Admin(models.Model):
         self.password = make_password(raw_password)
     
     def check_password(self, raw_password):
-        """Check if the provided password matches the stored hash."""
+        
         from django.contrib.auth.hashers import check_password
         return check_password(raw_password, self.password)
 
 
 class Profile(models.Model):
-    """
-    User profile model to store additional user information.
-    """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     first_name = models.CharField(
         _('First Name'), 
@@ -289,16 +273,16 @@ class Profile(models.Model):
         from django.core.exceptions import ValidationError
         import re
         
-        # Validate contact number format
+        
         if self.contact_number:
-            # Remove spaces and check if it contains only digits
+            
             clean_number = self.contact_number.replace(' ', '').replace('-', '')
             if not re.match(r'^[0-9]{11}$', clean_number):
                 raise ValidationError({
                     'contact_number': 'Contact number must be exactly 11 numeric digits'
                 })
         
-        # Validate name fields don't contain numbers or special characters
+    
         if self.first_name:
             if not re.match(r'^[a-zA-Z\s]+$', self.first_name):
                 raise ValidationError({
@@ -395,7 +379,7 @@ class DonationRequest(models.Model):
         blank=True,
         help_text='True if donor accepts, False if declines, None if no response'
     )
-    # urgency_level field removed
+
     notes = models.TextField(
         _('Notes'),
         blank=True,
@@ -468,13 +452,7 @@ class CallLog(models.Model):
         related_name='calls_received',
         help_text='User who received the call'
     )
-    # Remove this field since it was already removed in migration 0009
-    # donation_request = models.ForeignKey(
-    #     'DonationRequest',
-    #     on_delete=models.CASCADE,
-    #     related_name='call_logs',
-    #     help_text='The donation request this call is related to'
-    # )
+   
     call_status = models.CharField(
         _('Call Status'),
         max_length=20,
@@ -503,7 +481,7 @@ class CallLog(models.Model):
         default=False,
         help_text='Whether both parties confirmed the call'
     )
-    # Email confirmation fields
+    
     email_sent = models.BooleanField(
         _('Email Sent'),
         default=False,
@@ -557,10 +535,7 @@ class CallLog(models.Model):
 
 
 class MonthlyDonationTracker(models.Model):
-    """
-    Model to track monthly donation goals and completed calls.
-    Tracks when 3 confirmed calls complete a monthly count.
-    """
+  
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -604,7 +579,7 @@ class MonthlyDonationTracker(models.Model):
         return f"{self.user.email} - {self.month.strftime('%B %Y')} ({self.completed_calls_count}/3)"
 
     def increment_call_count(self):
-        """Increment the completed calls count and check if monthly goal is reached."""
+        
         self.completed_calls_count += 1
         if self.completed_calls_count >= 3 and not self.monthly_goal_completed:
             self.monthly_goal_completed = True
@@ -613,11 +588,10 @@ class MonthlyDonationTracker(models.Model):
         return self.monthly_goal_completed
 
     def reset_for_new_month(self):
-        """Reset the tracker for a new month."""
-        # Store previous blocked status for email notification
+        
         was_blocked = self.monthly_goal_completed and not self.user.is_active
         
-        # Reset monthly tracking fields
+        
         self.completed_calls_count = 0
         self.monthly_goal_completed = False
         self.goal_completed_at = None
@@ -636,23 +610,20 @@ class MonthlyDonationTracker(models.Model):
     
     @classmethod
     def get_or_create_for_user_month(cls, user, date=None):
-        """Get or create a tracker for the user's current month."""
+    
         if date is None:
             date = timezone.now().date()
         
         # Get the first day of the month
         month_start = date.replace(day=1)
         
-        # Check if user has a tracker for previous month that was completed
-        # If so, and we're in a new month, reset the blocking status
         previous_trackers = cls.objects.filter(
             user=user,
             month__lt=month_start,
             monthly_goal_completed=True
         ).order_by('-month')
         
-        # If there's a previous completed tracker and we're in a new month,
-        # the user should be unblocked for the new month
+    
         tracker, created = cls.objects.get_or_create(
             user=user,
             month=month_start,
@@ -663,8 +634,6 @@ class MonthlyDonationTracker(models.Model):
             }
         )
         
-        # If tracker already exists but we're checking in a new month,
-        # ensure it's properly reset (this handles edge cases)
         if not created and tracker.month == month_start:
             current_month = timezone.now().date().replace(day=1)
             if tracker.month < current_month:
@@ -673,15 +642,12 @@ class MonthlyDonationTracker(models.Model):
         return tracker, created
 
 
-# Signal to automatically handle monthly resets
+
 @receiver(post_save, sender=MonthlyDonationTracker)
 def handle_monthly_reset(sender, instance, created, **kwargs):
-    """
-    Signal to automatically reset monthly counts when a new month begins.
-    This ensures users are unblocked at the start of each new month.
-    """
+
     if created:
-        # When a new tracker is created, check if user was blocked in previous month
+       
         current_month = instance.month
         previous_month = (current_month.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
         
@@ -698,7 +664,7 @@ def handle_monthly_reset(sender, instance, created, **kwargs):
             if instance.monthly_goal_completed or instance.completed_calls_count > 0:
                 instance.reset_for_new_month()
                 
-                # Send email notification about unblocking
+                
                 month_year = current_month.strftime('%B %Y')
                 _send_unblock_email_notification(instance.user, month_year)
                 
@@ -706,21 +672,15 @@ def handle_monthly_reset(sender, instance, created, **kwargs):
                 print(f"Auto-reset: User {instance.user.email} unblocked for {month_year}")
                 
         except MonthlyDonationTracker.DoesNotExist:
-            # No previous month tracker found, nothing to reset
+            
             pass
         except Exception as e:
-            # Log any errors but don't break the flow
+            
             print(f"Error in monthly reset signal for {instance.user.email}: {e}")
 
 
 def _send_unblock_email_notification(user, month_year):
-    """
-    Send email notification to user when they get unblocked.
-    
-    Args:
-        user: User object
-        month_year (str): Month and year (e.g., "January 2025")
-    """
+ 
     try:
         from .email_config import EmailService
         

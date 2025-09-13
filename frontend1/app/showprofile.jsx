@@ -1,19 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  ScrollView,
-  Linking,
-  Alert,
-  Modal,
-} from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert,Modal } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, { createDonationRequest, createCallLog, respondToDonationRequest, sendDonorNotification } from '../constants/API';
+import api, { createCallLog,  sendDonorNotification } from '../constants/API';
 
 export default function ShowProfileScreen() {
   const { donorData } = useLocalSearchParams();
@@ -79,7 +69,7 @@ export default function ShowProfileScreen() {
       }
 
       const callData = {
-        receiver: donor.user, // Fixed: use donor.user instead of receiver_email
+        receiver: donor.user, 
         call_start_time: callStartTime,
         call_end_time: new Date().toISOString(),
       };
@@ -99,7 +89,7 @@ export default function ShowProfileScreen() {
 
   const handleUserResponse = async (agreed) => {
     try {
-      // First log the call and get the call log ID
+      
       const loggedCallId = await logCall();
       
       if (donationRequestId) {
@@ -122,8 +112,8 @@ export default function ShowProfileScreen() {
           // Send notification to donor about their agreement
           try {
             await sendDonorNotification({
-              call_log_id: loggedCallId, // Use the returned call log ID
-              donor_agreed: true // Changed from agreed_to_donate to donor_agreed
+              call_log_id: loggedCallId, 
+              donor_agreed: true 
             });
             
             Alert.alert(
@@ -171,7 +161,7 @@ export default function ShowProfileScreen() {
           {
             text: 'Call',
             onPress: async () => {
-              // Create donation request before making the call
+              
               const requestId = await handleCreateDonationRequest();
               setDonationRequestId(requestId);
               setCallStartTime(new Date());
@@ -229,8 +219,7 @@ export default function ShowProfileScreen() {
 
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton} 
@@ -243,11 +232,8 @@ export default function ShowProfileScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Card */}
         <View style={styles.profileCard}>
 
-
-          {/* Information Section */}
           <View style={styles.infoSection}>
             <View style={styles.infoRow}>
               <View style={styles.infoItem}>
@@ -301,8 +287,6 @@ export default function ShowProfileScreen() {
               </View>
             )}
 
-
-
             {donor.gender && (
               <View style={styles.infoRow}>
                 <View style={styles.infoItem}>
@@ -317,9 +301,6 @@ export default function ShowProfileScreen() {
           </View>
         </View>
 
-
-
-        {/* Emergency Note */}
         <View style={styles.emergencyNote}>
           <Ionicons name="information-circle" size={20} color="#ff6b35" />
           <Text style={styles.emergencyText}>
@@ -328,7 +309,6 @@ export default function ShowProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Action Button */}
       <View style={styles.actionButtons}>
         {!isCallInProgress ? (
           <TouchableOpacity style={styles.callButton} onPress={handleCall}>
@@ -350,7 +330,7 @@ export default function ShowProfileScreen() {
       </View>
       
       <PostCallModal />
-    </SafeAreaView>
+    </View>
   );
 }
 

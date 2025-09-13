@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../constants/API';
 import { checkAuthStatus, redirectBasedOnRole } from '../utils/authUtils';
 
 export default function AuthCheck({ children }) {
@@ -41,7 +39,7 @@ export default function AuthCheck({ children }) {
   }
 
   if (!isAuthenticated) {
-    // Redirect to upinscreen instead of returning null
+  
     router.replace('/upinscreen');
     return (
       <View style={styles.loadingContainer}>

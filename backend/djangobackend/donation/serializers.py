@@ -5,6 +5,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 import logging
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,11 @@ class UserSerializer(serializers.ModelSerializer):
     
 
     def validate(self, attrs):
-        validate_password(attrs['password'])
+        try:
+            validate_password(attrs['password'])  # Django's built-in password validation
+        except ValidationError as e:
+            logger.error(f"Password validation failed: {e.messages}")
+            raise serializers.ValidationError({"password": e.messages})
         return attrs
 
     def create(self, validated_data):
@@ -36,7 +41,7 @@ class UserSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         
-        raw_otp = user.generate_otp()  # Using correct method name
+        raw_otp = user.generate_otp()  
         
         try:
             send_mail(
@@ -197,7 +202,7 @@ class DonationRequestSerializer(serializers.ModelSerializer):
         }
     
     def create(self, validated_data):
-        # Set requester to current user
+        
         validated_data['requester'] = self.context['request'].user
         return super().create(validated_data)
 
@@ -221,7 +226,7 @@ class CallLogSerializer(serializers.ModelSerializer):
         }
     
     def create(self, validated_data):
-        # Set caller to current user
+        
         validated_data['caller'] = self.context['request'].user
         return super().create(validated_data)
 
@@ -230,7 +235,7 @@ class CallLogSerializer(serializers.ModelSerializer):
 
 
 class DonationRequestResponseSerializer(serializers.Serializer):
-    """Serializer for user/donor responses to donation requests."""
+    
     response = serializers.BooleanField()
     notes = serializers.CharField(max_length=500, required=False, allow_blank=True)
     
