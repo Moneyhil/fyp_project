@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert, Modal, ActivityIndicator, AppState } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -110,6 +110,9 @@ export default function ShowProfileScreen() {
   };
 
   const handleUserResponse = async (agreed) => {
+    
+    setShowPostCallModal(false);
+    
     try {
       const loggedCallId = await logCall();
       
@@ -151,17 +154,25 @@ export default function ShowProfileScreen() {
             );
           }
         } else {
+          
           Alert.alert(
             'Request Cancelled',
             'The donation request has been cancelled.',
             [{ text: 'OK', onPress: () => router.back() }]
           );
         }
+      } else {
+        
+        router.back();
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to process your response');
+      console.error('Error in handleUserResponse:', error);
+      Alert.alert(
+        'Error', 
+        'Failed to process your response. Please try again.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     }
-    setShowPostCallModal(false);
   };
 
 
@@ -175,6 +186,25 @@ export default function ShowProfileScreen() {
     }
   };
 
+  
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (isCallInProgress && nextAppState === 'active') {
+    
+        setTimeout(() => {
+          setIsCallInProgress(false);
+          setShowPostCallModal(true);
+        }, 1000); 
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    return () => {
+      subscription?.remove();
+    };
+  }, [isCallInProgress]);
+
   const makeCall = async (method, phoneNumber) => {
     try {
       const requestId = await handleCreateDonationRequest();
@@ -182,7 +212,7 @@ export default function ShowProfileScreen() {
       setCallStartTime(new Date());
       setIsCallInProgress(true);
       
-      // Make regular phone call
+      
       Linking.openURL(`tel:${phoneNumber}`);
     } catch (error) {
       Alert.alert('Error', 'Failed to initiate call');
@@ -369,16 +399,10 @@ export default function ShowProfileScreen() {
             <Text style={styles.buttonText}>Call Now</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity 
-            style={[styles.callButton, { backgroundColor: '#28a745' }]} 
-            onPress={() => {
-              setIsCallInProgress(false);
-              setShowPostCallModal(true);
-            }}
-          >
-            <Ionicons name="call-outline" size={20} color="#fff" />
-            <Text style={styles.buttonText}>End Call</Text>
-          </TouchableOpacity>
+          <View style={styles.callInProgressContainer}>
+            <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.buttonText}>Call in Progress...</Text>
+          </View>
         )}
       </View>
       

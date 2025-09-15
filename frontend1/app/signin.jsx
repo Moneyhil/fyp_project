@@ -48,7 +48,7 @@ export default function Login() {
     return null; 
   }
 
-  // Validation schema
+  
   const validationSchema = Yup.object().shape({
     email: Yup.string().email("Invalid email format").required("Email is required"),
     password: Yup.string().required("Password is required"),
@@ -80,6 +80,8 @@ export default function Login() {
       await validationSchema.validate(formData, { abortEarly: false });
       setErrors({});
 
+      console.log('Starting login process...');
+      
       const response = await api.post(
         "/donation/login/",
         {
@@ -88,72 +90,124 @@ export default function Login() {
         }
       );
 
-      console.log('Login response:', response.data); 
+      console.log('Login response status:', response.status);
+        console.log('Login response data:', response.data); 
 
       if (response.status === 200) {
         const { token, access_token, refresh_token, user } = response.data;
         
         
-        const authToken = token || access_token;
+        const authToken = token; 
         
-        console.log('Auth token:', authToken); 
-        console.log('Refresh token:', refresh_token); 
-        
-        if (authToken && refresh_token && user) {
-          
-          await AsyncStorage.setItem('authToken', authToken);
-          await AsyncStorage.setItem('refreshToken', refresh_token);
-          await AsyncStorage.setItem('userInfo', JSON.stringify(user));
-        }
-        console.log('User:', user); 
+        console.log('Extracted tokens:');
+        console.log('  - Auth token:', authToken); 
+        console.log('  - Refresh token:', refresh_token); 
+        console.log('  - User:', user); 
 
+        
         if (!authToken) {
+          console.error('No auth token received');
           Alert.alert("Error", "No authentication token received");
+          setLoading(false);
           return;
         }
 
+        if (!refresh_token) {
+          console.error('No refresh token received');
+          Alert.alert("Error", "No refresh token received");
+          setLoading(false);
+          return;
+        }
+
+        if (!user) {
+          console.error('No user data received');
+          Alert.alert("Error", "No user data received");
+          setLoading(false);
+          return;
+        }
+
+        console.log('Storing tokens in AsyncStorage...');
         
+        
+        await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'userInfo']);
+        
+      
         await AsyncStorage.setItem('authToken', authToken);
         await AsyncStorage.setItem('refreshToken', refresh_token);
         await AsyncStorage.setItem('userInfo', JSON.stringify(user));
         
-        Alert.alert("Success", "Login successful!");
+        console.log('Tokens stored, verifying...');
         
       
-        if (user.is_staff) {
-          router.replace('/admindashboard');
-        } else {
-          router.replace('/home');
+        const storedToken = await AsyncStorage.getItem('authToken');
+        const storedRefresh = await AsyncStorage.getItem('refreshToken');
+        const storedUser = await AsyncStorage.getItem('userInfo');
+        
+        console.log('Verification results:');
+        console.log('  - Stored auth token:', storedToken);
+        console.log('  - Stored refresh token:', storedRefresh);
+        console.log('  - Stored user info:', storedUser ? 'Present' : 'Missing');
+        
+        
+        console.log('Testing token validity...');
+        try {
+          
+          const testResponse = await api.get('/donation/profile/' + user.email + '/');
+          console.log('Token test successful:', testResponse.status);
+          
+          
+          Alert.alert("Success", "Login successful!");
+          
+          
+          setTimeout(() => {
+            console.log('Navigating to dashboard...');
+            if (user.is_staff) {
+              router.replace('/admindashboard');
+            } else {
+              router.replace('/home');
+            }
+          }, 500);
+          
+        } catch (testError) {
+          console.error('Token test failed:', testError.response?.status, testError.response?.data);
+          
+    
+          await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'userInfo']);
+          
+          if (testError.response?.status === 401) {
+            Alert.alert(
+              "Authentication Error", 
+              "The login was successful but the authentication tokens are invalid. This might be a server issue. Please try again or contact support.",
+              [
+                {
+                  text: "Try Again",
+                  onPress: () => {
+                  
+                  }
+                }
+              ]
+            );
+          } else {
+            Alert.alert(
+              "Connection Error", 
+              "Login successful but unable to verify connection. Please check your network and try again."
+            );
+          }
+          
+          setLoading(false);
+          return; 
         }
       }
     } catch (err) {
+      console.error(' Login error:', err);
       if (err.response) {
-        
-        if (err.response.status === 400 && err.response.data) {
-          const errorData = err.response.data;
-          if (typeof errorData === 'object' && !errorData.error) {
-          
-            const formErrors = {};
-            Object.keys(errorData).forEach(field => {
-              if (Array.isArray(errorData[field])) {
-                formErrors[field] = errorData[field][0];
-              } else {
-                formErrors[field] = errorData[field];
-              }
-            });
-            setErrors(formErrors);
-          } else {
-            Alert.alert("Error", errorData.error || errorData.non_field_errors?.[0] || "Invalid email or password");
-          }
-        } else {
-          Alert.alert("Error", err.response.data?.error || "Invalid email or password");
-        }
-      } else if (err.name === "ValidationError") {
-        const formErrors = {};
-        err.inner.forEach((e) => (formErrors[e.path] = e.message));
-        setErrors(formErrors);
+        console.error('Error response:', err.response.data);
+        const errData = err.response.data;
+        let errorMessage = errData?.error || errData?.message || "Login failed. Please try again.";
+        Alert.alert("Error", errorMessage);
       } else {
-        Alert.alert("Error", "Network error. Please try again.");
+        console.error('Network error:', err.message);
+        Alert.alert("Error", "Network error. Please check your connection.");
       }
     } finally {
       setLoading(false);

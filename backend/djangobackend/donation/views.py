@@ -356,6 +356,10 @@ class BlockUnblockUserView(View):
         try:
             user = User.objects.get(pk=pk, is_staff=False)
             user.is_active = not user.is_active
+            if user.is_active:  # If unblocking
+                user.manual_block_override = True
+            else:  # If blocking
+                user.manual_block_override = False
             user.save()
             status = 'unblocked' if user.is_active else 'blocked'
             return JsonResponse({'message': f'User {status} successfully'})
@@ -1426,8 +1430,9 @@ class DonorEmailConfirmationView(APIView):
                         count_completed = True
                         
                 
-                        if tracker.completed_calls_count >= 3 and not call_log.caller.is_active == False:
-                            
+                        if (tracker.completed_calls_count >= 3 and 
+                            call_log.caller.is_active and 
+                            not getattr(call_log.caller, 'manual_block_override', False)):
                             call_log.caller.is_active = False
                             call_log.caller.save()
                             

@@ -680,3 +680,6 @@ def _send_unblock_email_notification(user, month_year):
         print(f"EmailService not available - could not send unblock email to {user.email}")
     except Exception as e:
         print(f"Error sending unblock email to {user.email}: {e}")
+
+
+manual_block_override = models.BooleanField(default=False, help_text="Prevents automatic re-blocking")

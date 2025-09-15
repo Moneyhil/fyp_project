@@ -1,5 +1,5 @@
 from django.urls import path
-from donation import views
+from . import views
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -49,5 +49,6 @@ urlpatterns = [
     path('donor-tracker/<int:user_id>/', views.DonorTrackerView.as_view(), name='donor-tracker'),
     path('call-logs/create/', views.CallLogCreateView.as_view(), name='call-log-create'),
     path('confirm-donation/', views.DonorEmailConfirmationView.as_view(), name='donor-email-confirmation'),
+    path('messages/send-donor-notification/', views.SendDonorNotificationView.as_view(), name='send-donor-notification'),
 ]
 

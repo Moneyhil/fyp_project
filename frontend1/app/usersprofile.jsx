@@ -27,6 +27,20 @@ const extractEmail = (user) => {
     }, [])
   );
 
+  const handleAuthError = async (errorMessage = 'Session expired. Please log in again.') => {
+    try {
+      await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'userInfo']);
+      setError(errorMessage);
+      
+      setTimeout(() => {
+        router.replace('/login');
+      }, 1000);
+    } catch (error) {
+      console.error('Error clearing auth data:', error);
+    }
+  };
+  
+  
   const fetchUserProfile = async () => {
     setLoading(true);
     setError(null);
@@ -34,31 +48,25 @@ const extractEmail = (user) => {
     try {
       const userString = await AsyncStorage.getItem('userInfo');
       if (!userString) {
-        setError('No user data found. Please log in again.');
-        setLoading(false);
+        await handleAuthError('No user data found. Please log in again.');
         return;
       }
   
       const user = JSON.parse(userString);
       const email = extractEmail(user);
   
-
-      
       if (!email || email === 'undefined' || email === 'null') {
         console.error('No valid email found in user object:', user);
-        setError('User email not found. Please log in again.');
-        setLoading(false);
+        await handleAuthError('User email not found. Please log in again.');
         return;
       }
       
       if (typeof email !== 'string' || !email.includes('@')) {
         console.error('Invalid email format:', email);
-        setError('Invalid email format. Please log in again.');
-        setLoading(false);
+        await handleAuthError('Invalid email format. Please log in again.');
         return;
       }
-
-
+  
       try {
         const profileResponse = await getProfile(email);
         if (profileResponse.status === 200) {
@@ -66,7 +74,11 @@ const extractEmail = (user) => {
         }
       } catch (profileError) {
         console.error('Profile fetch error:', profileError);
-        if (profileError.response && profileError.response.status === 404) {
+        if (profileError.response?.status === 401 || 
+            profileError.message === 'Session expired. Please log in again.') {
+          await handleAuthError('Session expired. Please log in again.');
+          return;
+        } else if (profileError.response?.status === 404) {
           setError('Profile not found. Please create your profile first.');
         } else {
           setError('Failed to load profile. Please try again.');
@@ -77,9 +89,7 @@ const extractEmail = (user) => {
   
       try {
         console.log('Calling getMonthlyTracker with email:', email);
-        console.log('Email type:', typeof email, 'Email length:', email.length);
         
-
         if (!email || email.trim() === '' || email === 'undefined') {
           console.warn('Email validation failed before API call:', email);
           return;
@@ -100,6 +110,12 @@ const extractEmail = (user) => {
         }
       } catch (monthlyError) {
         console.error('Monthly tracker fetch failed:', monthlyError);
+        
+        if (monthlyError.response?.status === 401 || 
+            monthlyError.message === 'Session expired. Please log in again.') {
+          await handleAuthError('Session expired. Please log in again.');
+          return;
+        }
         console.error('Error details:', {
           message: monthlyError.message,
           response: monthlyError.response?.data,
@@ -110,6 +126,10 @@ const extractEmail = (user) => {
       
     } catch (error) {
       console.error('General fetch error:', error);
+      if (error.message === 'Session expired. Please log in again.') {
+        await handleAuthError();
+        return;
+      }
       setError('Failed to load data. Please try again.');
     } finally {
       setLoading(false);

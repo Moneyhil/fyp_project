@@ -34,7 +34,6 @@ class CustomUserAdmin(UserAdmin):
     user_status.short_description = 'Status'
     
     def block_user_account(self, request, queryset):
-        """Admin action to block user accounts"""
         count = 0
         for user in queryset:
             if user.is_active and not user.is_staff:
@@ -44,9 +43,7 @@ class CustomUserAdmin(UserAdmin):
         
         self.message_user(request, f'Successfully blocked {count} user accounts.')
     block_user_account.short_description = "Block selected user accounts (non-staff only)"
-    
     def unblock_user_account(self, request, queryset):
-    
         from donation.email_config import EmailService
         from django.utils import timezone
         
@@ -57,9 +54,9 @@ class CustomUserAdmin(UserAdmin):
         for user in queryset:
             if not user.is_active and not user.is_staff:
                 user.is_active = True
+                user.manual_block_override = True  # Add this line
                 user.save()
                 count += 1
-                
                 
                 try:
                     success, message = EmailService.send_monthly_unblock_notification(user, current_month)
@@ -68,14 +65,13 @@ class CustomUserAdmin(UserAdmin):
                 except Exception as e:
                     pass  
         
-        message = f'Successfully unblocked {count} user accounts.'
+        message = f'Successfully unblocked {count} user accounts with manual override.'
         if email_count > 0:
             message += f' Sent {email_count} notification emails.'
         self.message_user(request, message)
     unblock_user_account.short_description = "Unblock selected user accounts (non-staff only)"
     
     def delete_user_account(self, request, queryset):
-        """Admin action to delete user accounts"""
         from django.contrib import messages
         
         count = 0
@@ -122,7 +118,6 @@ class ProfileAdmin(admin.ModelAdmin):
     user_status.short_description = 'Account Status'
     
     def block_user_account(self, request, queryset):
-        """Admin action to block user accounts"""
         count = 0
         for profile in queryset:
             user = profile.user
@@ -135,7 +130,6 @@ class ProfileAdmin(admin.ModelAdmin):
     block_user_account.short_description = "Block selected user accounts"
     
     def unblock_user_account(self, request, queryset):
-        """Admin action to unblock user accounts"""
         from donation.email_config import EmailService
         from django.utils import timezone
         
@@ -165,7 +159,7 @@ class ProfileAdmin(admin.ModelAdmin):
     unblock_user_account.short_description = "Unblock selected user accounts"
     
     def delete_user_and_profile(self, request, queryset):
-        """Admin action to delete user profiles and accounts"""
+        
         from django.contrib import messages
         
         count = 0
@@ -222,7 +216,7 @@ class MonthlyDonationTrackerAdmin(admin.ModelAdmin):
         return qs.select_related('user')
 
 class BlockedProfilesAdmin(admin.ModelAdmin):
-    """Custom admin view to show only blocked profiles (users who completed 3 calls in one month)"""
+    
     list_display = ('user', 'user_email', 'month', 'completed_calls_count', 'goal_completed_at', 'user_status', 'is_current_month')
     list_filter = ('month', 'goal_completed_at', 'monthly_goal_completed')
     search_fields = ('user__email', 'user__name')
@@ -252,7 +246,6 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
     is_current_month.short_description = 'Current Month?'
     
     def get_queryset(self, request):
-        """Show users who completed 3 calls in any month (current and past blocked profiles)"""
         qs = super().get_queryset(request)
         return qs.filter(
             monthly_goal_completed=True,
@@ -260,7 +253,6 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
         ).select_related('user')
     
     def reset_monthly_count(self, request, queryset):
-        """Admin action to reset monthly count for selected users"""
         from django.utils import timezone
         current_month = timezone.now().date().replace(day=1)
         
@@ -319,7 +311,7 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
     unblock_user_account.short_description = "Unblock selected user accounts"
     
     def delete_user_profile(self, request, queryset):
-        """Admin action to delete user profiles and accounts"""
+        
         from django.contrib import messages
         
         count = 0
