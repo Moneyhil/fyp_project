@@ -29,7 +29,7 @@ export default function ConfirmDonationScreen() {
       
       if (apiResponse.data.success) {
         setSuccess(true);
-        // Use the personalized message from backend
+  
         setMessage(apiResponse.data.message || 'Thank you for your response!');
       } else {
         setMessage(apiResponse.data.message || 'Failed to process confirmation');

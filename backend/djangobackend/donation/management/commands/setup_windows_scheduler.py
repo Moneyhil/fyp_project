@@ -47,7 +47,7 @@ class Command(BaseCommand):
 
     def create_task(self, task_name):
         """Create a Windows scheduled task for monthly reset."""
-        # Get current project directory
+      
         project_dir = Path(__file__).parent.parent.parent.parent
         manage_py = project_dir / 'manage.py'
         

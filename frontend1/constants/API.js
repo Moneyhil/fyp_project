@@ -10,7 +10,7 @@ const api = axios.create({
 });
 
 
-api.interceptors.request.use(
+api.interceptors.request.use( 
   async (config) => {
     try {
       const authToken = await AsyncStorage.getItem('authToken');
@@ -67,16 +67,11 @@ export const getDonationRequests = () => api.get('/donation/requests/');
 export const createProfile = (profileData) => api.post('/donation/profile/create/', profileData);
 export const getProfile = (email) => api.get(`/donation/profile/${email}/`);
 export const getMonthlyTracker = (email) => {
-  console.log('getMonthlyTracker called with:', email, 'type:', typeof email);
-  
   if (!email || email === 'undefined' || email === 'null') {
-    console.error('Invalid email passed to getMonthlyTracker:', email);
     return Promise.reject(new Error('Invalid email parameter'));
   }
   
   const url = `/donation/monthly-tracker/?user_email=${encodeURIComponent(email)}`;
-  console.log('Making request to URL:', url);
-  
   return api.get(url);
 };
 export const createDonationRequest = (requestData) => api.post('/donation/donation-requests/create/', requestData);

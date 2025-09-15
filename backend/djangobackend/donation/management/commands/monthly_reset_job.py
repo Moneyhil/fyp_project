@@ -11,7 +11,7 @@ class Command(BaseCommand):
     help = 'Wrapper command for monthly reset job with enhanced logging'
     
     def handle(self, *args, **options):
-        # Setup logging
+    
         log_file = os.path.join(settings.BASE_DIR, 'logs', 'monthly_reset.log')
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
         

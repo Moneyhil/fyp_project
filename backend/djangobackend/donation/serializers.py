@@ -17,18 +17,16 @@ class UserSerializer(serializers.ModelSerializer):
             'password': {'write_only': True},
             'is_verified': {'read_only': True}
         }
-        
 
     def validate_email(self, value):
         value = value.lower().strip()
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("Email already registered")
         return value
-    
 
     def validate(self, attrs):
         try:
-            validate_password(attrs['password'])  # Django's built-in password validation
+            validate_password(attrs['password'])
         except ValidationError as e:
             logger.error(f"Password validation failed: {e.messages}")
             raise serializers.ValidationError({"password": e.messages})
@@ -41,7 +39,7 @@ class UserSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         
-        raw_otp = user.generate_otp()  
+        raw_otp = user.generate_otp()
         
         try:
             send_mail(
@@ -54,9 +52,6 @@ class UserSerializer(serializers.ModelSerializer):
             logger.error(f"Email send failed: {e}")
         
         return user
-
-
-
 class OTPVerifySerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=6, min_length=6)
@@ -146,7 +141,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         }
     
     def validate_contact_number(self, value):
-        """Validate contact number format."""
+       
         if value:
             clean_number = value.replace(' ', '').replace('-', '')
             if not re.match(r'^[0-9]{11}$', clean_number):
@@ -156,7 +151,6 @@ class ProfileSerializer(serializers.ModelSerializer):
         return value
     
     def validate_first_name(self, value):
-        """Validate first name contains only letters and spaces."""
         if value and not re.match(r'^[a-zA-Z\s]+$', value):
             raise serializers.ValidationError(
                 'First name should only contain letters and spaces'
@@ -164,7 +158,6 @@ class ProfileSerializer(serializers.ModelSerializer):
         return value
     
     def validate_last_name(self, value):
-        """Validate last name contains only letters and spaces."""
         if value and not re.match(r'^[a-zA-Z\s]+$', value):
             raise serializers.ValidationError(
                 'Last name should only contain letters and spaces'
@@ -172,7 +165,6 @@ class ProfileSerializer(serializers.ModelSerializer):
         return value
     
     def validate_city(self, value):
-        """Validate city name contains only letters and spaces."""
         if value and not re.match(r'^[a-zA-Z\s]+$', value):
             raise serializers.ValidationError(
                 'City name should only contain letters and spaces'
@@ -191,7 +183,7 @@ class DonationRequestSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'requester', 'donor', 'requester_name', 'donor_name',
             'requester_email', 'donor_email', 'blood_group', 'status',
-            'user_response', 'donor_response', 'notes',  # Remove 'urgency_level'
+            'user_response', 'donor_response', 'notes',
             'created_at', 'updated_at', 'expires_at'
         ]
         extra_kwargs = {
@@ -217,7 +209,7 @@ class CallLogSerializer(serializers.ModelSerializer):
             'id', 'caller', 'receiver',
             'caller_name', 'receiver_name', 'call_status', 'duration_seconds',
             'created_at', 'updated_at', 'caller_confirmed', 'receiver_confirmed',
-            'both_confirmed', 'email_sent', 'donor_email_response'
+            'both_confirmed', 'email_sent', 'donor_email_response', 'call_method'
         ]
         extra_kwargs = {
             'caller': {'read_only': True},

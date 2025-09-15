@@ -128,11 +128,11 @@ export default function Login() {
       }
     } catch (err) {
       if (err.response) {
-        // Handle backend validation errors
+        
         if (err.response.status === 400 && err.response.data) {
           const errorData = err.response.data;
           if (typeof errorData === 'object' && !errorData.error) {
-            // Handle field-specific validation errors
+          
             const formErrors = {};
             Object.keys(errorData).forEach(field => {
               if (Array.isArray(errorData[field])) {

@@ -127,7 +127,7 @@ export default function Registration() {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
-      };
+      };  
 
     
       const response = await api.post(

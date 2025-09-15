@@ -22,14 +22,14 @@ export default function OTPVerification() {
   const inputRefs = useRef([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // API Endpoints
+
   const API_ENDPOINTS = {
     VERIFY_OTP: '/donation/verify-otp/',
     SEND_OTP: '/donation/send-otp/',
   };
 
   useEffect(() => {
-    // Fade in animation
+
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 500,

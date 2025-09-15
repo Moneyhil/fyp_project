@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, RefreshControl, SafeAreaView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -65,7 +65,7 @@ export default function BlockedProfiles() {
 
               if (response.status === 200) {
                 Alert.alert("Success", "User unblocked successfully");
-                loadBlockedUsers(); // Refresh the list
+                loadBlockedUsers(); 
               }
             } catch (error) {
               console.error("Unblock error:", error);

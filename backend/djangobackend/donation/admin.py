@@ -5,7 +5,7 @@ from django.db.models import Q
 from .models import User, Profile, Admin, MonthlyDonationTracker
 
 class CustomUserAdmin(UserAdmin):
-    list_display = ('email', 'name', 'is_staff', 'user_status', 'date_joined', 'is_verified')  # Use date_joined instead of created_at
+    list_display = ('email', 'name', 'is_staff', 'user_status', 'date_joined', 'is_verified')  
     list_filter = ('is_staff', 'is_superuser', 'is_active', 'is_verified')
     actions = ['block_user_account', 'unblock_user_account', 'delete_user_account']
     fieldsets = (
@@ -197,7 +197,7 @@ class AdminAdmin(admin.ModelAdmin):
     
     def save_model(self, request, obj, form, change):
         if not change:  
-            obj.set_password(obj.password)  # Hash the password
+            obj.set_password(obj.password)
         super().save_model(request, obj, form, change)
 
 class MonthlyDonationTrackerAdmin(admin.ModelAdmin):
@@ -305,14 +305,13 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
                 user.save()
                 count += 1
                 
-                # Send unblock notification email
+        
                 try:
                     success, message = EmailService.send_monthly_unblock_notification(user, current_month)
                     if success:
                         email_count += 1
                 except Exception as e:
-                    pass  # Continue even if email fails
-        
+                    pass  
         message = f'Successfully unblocked {count} user accounts.'
         if email_count > 0:
             message += f' Sent {email_count} notification emails.'
@@ -341,7 +340,6 @@ class BlockedProfilesAdmin(admin.ModelAdmin):
         
         return False
 
-# Register models with admin
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Profile, ProfileAdmin)
 admin.site.register(Admin, AdminAdmin)

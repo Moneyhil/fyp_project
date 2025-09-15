@@ -16,7 +16,7 @@ export default function SplashScreen() {
   const scaleAnim = new Animated.Value(0.8);
 
   useEffect(() => {
-    // Start animations
+    // animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,

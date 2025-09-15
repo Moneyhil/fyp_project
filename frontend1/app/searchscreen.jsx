@@ -48,7 +48,7 @@ export default function SearchDonorsScreen() {
       const user = JSON.parse(userString);
       setUserEmail(user.email);
 
-      // Check monthly tracker status
+    
       const trackerResponse = await getMonthlyTracker(user.email);
       if (trackerResponse.data && trackerResponse.data.monthly_goal_completed) {
         setMonthlyGoalCompleted(true);
@@ -74,8 +74,6 @@ export default function SearchDonorsScreen() {
       Alert.alert('Error', 'Please select both blood group and city');
       return;
     }
-
-    // Navigate to donor list screen with search parameters
     router.push({
       pathname: '/donorlist',
       params: {

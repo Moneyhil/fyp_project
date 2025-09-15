@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import {View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert,Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert, Modal, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, { createCallLog,  sendDonorNotification } from '../constants/API';
+import api, { createCallLog, sendDonorNotification } from '../constants/API';
+
 
 export default function ShowProfileScreen() {
   const { donorData } = useLocalSearchParams();
@@ -15,17 +16,43 @@ export default function ShowProfileScreen() {
   const [callId, setCallId] = useState(null);
   const [isCallInProgress, setIsCallInProgress] = useState(false);
 
+  const [donationTracker, setDonationTracker] = useState(null);
+  const [loadingTracker, setLoadingTracker] = useState(true);
+
   useEffect(() => {
     const getUserEmail = async () => {
       try {
         const email = await AsyncStorage.getItem('userEmail');
         setUserEmail(email);
       } catch (error) {
-        console.error('Error getting user email:', error);
+      
+    }
+    };
+
+    const fetchDonationTracker = async () => {
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (!authToken) return;
+
+        const response = await api.get(
+          `/donation/donor-tracker/${donor.user}/`,
+          {
+            headers: { Authorization: `Bearer ${authToken}` },
+          }
+        );
+
+        setDonationTracker(response.data);
+      } catch (error) {
+    
+      } finally {
+        setLoadingTracker(false);
       }
     };
+
     getUserEmail();
-  }, []);
+    if (donor?.user) fetchDonationTracker();
+  }, [donor.user]);
+
 
   const handleCreateDonationRequest = async () => {
     try {
@@ -34,26 +61,23 @@ export default function ShowProfileScreen() {
         Alert.alert('Error', 'Authentication required. Please log in again.');
         return null;
       }
-      
+
       const response = await api.post('/donation/donation-requests/create/', {
         donor: donor.user,
         blood_group: donor.blood_group,
-      
         notes: `Blood donation request for ${donor.blood_group} blood group`
       }, {
         headers: {
           'Authorization': `Bearer ${authToken}`
         }
       });
-      
+
       if (response && response.data && response.data.success) {
         return response.data.donation_request_id;
       } else {
-        console.error('Invalid response structure:', response);
         Alert.alert('Error', 'Invalid response from server');
       }
     } catch (error) {
-      console.error('Error creating donation request:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to create donation request';
       Alert.alert('Error', errorMessage);
     }
@@ -64,7 +88,6 @@ export default function ShowProfileScreen() {
     try {
       const authToken = await AsyncStorage.getItem('authToken');
       if (!authToken) {
-        console.error('No auth token found');
         return null;
       }
 
@@ -78,18 +101,16 @@ export default function ShowProfileScreen() {
       if (response && response.data && response.data.call_log && response.data.call_log.id) {
         const logId = response.data.call_log.id;
         setCallId(logId);
-        console.log('Call logged successfully');
-        return logId; // Return the call log ID
+        return logId; 
       }
     } catch (error) {
-      console.error('Error logging call:', error);
+      
     }
     return null;
   };
 
   const handleUserResponse = async (agreed) => {
     try {
-      
       const loggedCallId = await logCall();
       
       if (donationRequestId) {
@@ -109,7 +130,7 @@ export default function ShowProfileScreen() {
         });
         
         if (agreed) {
-          // Send notification to donor about their agreement
+          
           try {
             await sendDonorNotification({
               call_log_id: loggedCallId, 
@@ -123,7 +144,6 @@ export default function ShowProfileScreen() {
             );
             
           } catch (notificationError) {
-            console.error('Error sending notification:', notificationError);
             Alert.alert(
               'Partial Success',
               `Your response was recorded, but we couldn't send a notification to ${donor.full_name}. Please contact them directly.`,
@@ -139,7 +159,6 @@ export default function ShowProfileScreen() {
         }
       }
     } catch (error) {
-      console.error('Error responding to donation request:', error);
       Alert.alert('Error', 'Failed to process your response');
     }
     setShowPostCallModal(false);
@@ -150,31 +169,26 @@ export default function ShowProfileScreen() {
   const handleCall = async () => {
     const phoneNumber = donor.contact_number;
     if (phoneNumber) {
-      Alert.alert(
-        'Make a Call',
-        `Do you want to call ${donor.full_name} at ${phoneNumber}?`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Call',
-            onPress: async () => {
-              
-              const requestId = await handleCreateDonationRequest();
-              setDonationRequestId(requestId);
-              setCallStartTime(new Date());
-              setIsCallInProgress(true);
-              
-              // Make the call
-              Linking.openURL(`tel:${phoneNumber}`);
-            },
-          },
-        ]
-      );
+      await makeCall('dialer', phoneNumber);
     } else {
       Alert.alert('Error', 'Phone number not available');
+    }
+  };
+
+  const makeCall = async (method, phoneNumber) => {
+    try {
+      const requestId = await handleCreateDonationRequest();
+      setDonationRequestId(requestId);
+      setCallStartTime(new Date());
+      setIsCallInProgress(true);
+      
+      // Make regular phone call
+      Linking.openURL(`tel:${phoneNumber}`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to initiate call');
+      setIsCallInProgress(false);
+      setDonationRequestId(null);
+      setCallStartTime(null);
     }
   };
 
@@ -301,6 +315,45 @@ export default function ShowProfileScreen() {
           </View>
         </View>
 
+    
+        <View style={styles.trackerWrapper}>
+          {loadingTracker ? (
+            <ActivityIndicator size="large" color="#d40000" />
+          ) : donationTracker ? (
+            <View style={styles.donationCard}>
+              <View style={styles.donationHeader}>
+                <Text style={styles.donationTitle}>Donor Count</Text>
+              </View>
+              <View style={styles.donationContent}>
+                <View style={styles.donationDisplay}>
+                  <Text style={styles.donationNumber}>{donationTracker.completed_calls_count}</Text>
+                  <Text style={styles.donationDivider}>/</Text>
+                  <Text style={styles.donationLimit}>3</Text>
+                </View>
+                <Text
+                  style={[
+                    styles.donationStatus,
+                    donationTracker.monthly_goal_completed && styles.completedStatus,
+                  ]}
+                >
+                  {donationTracker.monthly_goal_completed
+                    ? 'Monthly Goal Completed!' : 'In Progress'}
+                </Text>
+                {!donationTracker.monthly_goal_completed && (
+                  <Text style={styles.donationSubtext}>
+                    {3 - donationTracker.completed_calls_count} more donation
+                    {3 - donationTracker.completed_calls_count !== 1 ? 's' : ''} to complete monthly goal
+                  </Text>
+                )}
+              </View>
+            </View>
+          ) : (
+            <Text style={{ textAlign: 'center', color: '#666' }}>
+              No donation records found for this donor.
+            </Text>
+          )}
+        </View>
+
         <View style={styles.emergencyNote}>
           <Ionicons name="information-circle" size={20} color="#ff6b35" />
           <Text style={styles.emergencyText}>
@@ -331,6 +384,8 @@ export default function ShowProfileScreen() {
       
       <PostCallModal />
     </View>
+    
+    
   );
 }
 
@@ -520,6 +575,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-
-
+  trackerWrapper: {
+    marginBottom: 20,
+  },
+   donationCard: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  donationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  donationTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 10,
+  },
+  donationContent: { alignItems: 'center' },
+  donationDisplay: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  donationNumber: { fontSize: 30 },
+  donationDivider: { fontSize: 24, color: '#666', marginHorizontal: 8 },
+  donationLimit: { fontSize: 24, color: '#666', fontWeight: '500' },
+  completedStatus: { color: '#d40000' },
+  donationMonth: { fontSize: 14, color: '#666', marginBottom: 8, fontWeight: '500' },
+  donationSubtext: { fontSize: 14, color: '#666', textAlign: 'center' },
+  completedMessage: { fontSize: 14, color: '#4caf50', textAlign: 'center', fontStyle: 'italic' },
 });
+

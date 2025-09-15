@@ -7,21 +7,17 @@ import api from '../constants/API';
 export default function HomeScreen() {
   const handleLogout = async () => {
     try {
-      
       const refreshToken = await AsyncStorage.getItem('refreshToken');
       
       if (refreshToken) {
-        
         await api.post(
           '/donation/logout/',
           { refresh_token: refreshToken }
         );
       }
     } catch (error) {
-      console.log('Logout API error:', error);
-
+    
     } finally {
-      
       await AsyncStorage.multiRemove([
         'authToken',
         'refreshToken', 

@@ -47,7 +47,6 @@ export default function ProfileScreen() {
     { label: "Faisalabad", value: "Faisalabad" },
   ]);
 
-  // Role dropdown
   const [roleOpen, setRoleOpen] = useState(false);
   const [roleItems, setRoleItems] = useState([
     { label: "Donor", value: "donor" },
@@ -216,6 +215,7 @@ export default function ProfileScreen() {
         }}
         setItems={setGenderItems}
         placeholder="Select Gender"
+        listMode="SCROLLVIEW" 
         style={styles.dropdown}
         dropDownContainerStyle={styles.dropdownContainer}
       />
@@ -246,6 +246,7 @@ export default function ProfileScreen() {
         }}
         setItems={setCityItems}
         placeholder="Select City"
+        listMode="SCROLLVIEW" 
         style={styles.dropdown}
         dropDownContainerStyle={styles.dropdownContainer}
       />
@@ -293,6 +294,7 @@ export default function ProfileScreen() {
         setItems={setRoleItems}
         placeholder="Select Role"
         style={styles.dropdown}
+        listMode="SCROLLVIEW" 
         dropDownContainerStyle={styles.dropdownContainer}
       />
       {touched.role && errors.role && <Text style={styles.errorText}>{errors.role}</Text>}

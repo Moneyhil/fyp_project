@@ -8,9 +8,6 @@ class EmailService:
     
     @staticmethod
     def send_monthly_unblock_notification(user, month_year):
-        """
-        Send email notification when user gets unblocked for monthly donations
-        """
         try:
             subject = f'Account Unblocked - {month_year}'
             message = f'''
@@ -40,9 +37,6 @@ class EmailService:
     
     @staticmethod
     def send_donor_confirmation_email(donor_user, caller_user, call_log_id):
-        """
-        Send email to donor asking for blood donation confirmation with clickable links
-        """
         try:
             logger.info(f"Attempting to send confirmation email to {donor_user.email}")
             
@@ -85,56 +79,5 @@ class EmailService:
             logger.error(f"Failed to send confirmation email to {donor_user.email}: {str(e)}")
             return False, str(e)
     
-    @staticmethod
-    def send_donation_reminder_email(donor, donation_request):
-        """
-        Send email to donor with yes/no links for donation request
-        """
-        try:
-            logger.info(f"Sending donation request email to {donor.email}")
-            
-            subject = 'Blood Donation Request - Response Required'
-            base_url = getattr(settings, 'BASE_URL', 'http://192.168.100.16:8000')
-            yes_url = f"{base_url}/donation/donor-response/{donation_request.id}/?response=yes"
-            no_url = f"{base_url}/donation/donor-response/{donation_request.id}/?response=no"
-            
-            message = f"""
-            Dear {donor.name},
-            
-            {donation_request.requester.name} has requested blood donation from you.
-            
-            Request Details:
-            - Blood Type Needed: {donation_request.blood_group}
-            - Requester: {donation_request.requester.name}
-            - Notes: {donation_request.notes or 'No additional notes'}
-            
-            Please respond by clicking one of the links below:
-            
-             YES - I can donate: {yes_url}
-            
-             NO - I cannot donate: {no_url}
-            
-            Your response is important and will help save lives.
-            
-            Thank you for your consideration.
-            
-            Best regards,
-            Blood Donation Team
-            """
-            
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[donor.email],
-                fail_silently=False,
-            )
-            
-            logger.info(f"Donation request email sent successfully to {donor.email}")
-            return True, "Donation request email sent successfully"
-            
-        except Exception as e:
-            logger.error(f"Failed to send donation request email to {donor.email}: {str(e)}")
-            return False, str(e)
-    
+   
   

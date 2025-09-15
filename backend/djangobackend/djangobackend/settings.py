@@ -2,7 +2,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env
+
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -12,15 +12,10 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 
 DEBUG = True
 
-RATELIMIT_ENABLE = True
-
 ALLOWED_HOSTS = ["*"]
-
 
 if DEBUG:
     ALLOWED_HOSTS.append('testserver')
-
-
 
 # Email configuration (using Gmail SMTP)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -36,11 +31,11 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',  
+    'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework_simplejwt.token_blacklist',  # For token blacklisting
+    'rest_framework_simplejwt.token_blacklist',
     'donation',
     'corsheaders',
 ]
@@ -49,7 +44,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',  # Required for Django admin interface
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -64,8 +59,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8082",
     "http://192.168.100.16:8000",
     "http://172.20.10.5:8000",
-    "http://172.20.10.5:8081",  # Add this line
-    "http://192.168.1.8:8000"
+    "http://172.20.10.5:8081", 
+    "http://192.168.1.38:8000",
+    "http://192.168.1.38:8081",
+    "http://10.208.141.166:8081",
+    "http://10.208.141.166:8000"
 ]
 
 ROOT_URLCONF = 'djangobackend.urls'
@@ -148,9 +146,7 @@ CACHES = {
     }
 }
 
-
 RATELIMIT_ENABLE = True
-
 
 BASE_URL = 'http://192.168.100.16:8000'
 FRONTEND_BASE_URL = 'http://192.168.100.16:8081'

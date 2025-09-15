@@ -45,14 +45,12 @@ export default function ResetPassword() {
   const [error, setError] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [step, setStep] = useState(1); // 1: OTP verification, 2: Set new password
+  const [step, setStep] = useState(1); 
   
   const inputRefs = useRef([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
 
-
-  // Validation schema for password
   const passwordSchema = Yup.object().shape({
     newPassword: Yup.string()
       .min(8, "Password must be at least 8 characters")

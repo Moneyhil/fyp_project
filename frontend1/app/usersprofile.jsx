@@ -11,9 +11,15 @@ export default function UsersProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
+const extractEmail = (user) => {
+  const possibleKeys = ["email", "userEmail", "User_email", "emailAddress", "user_email"];
+  for (let key of possibleKeys) {
+    if (user[key] && typeof user[key] === "string" && user[key].includes("@")) {
+      return user[key];
+    }
+  }
+  return null;
+};
 
   useFocusEffect(
     useCallback(() => {
@@ -34,16 +40,9 @@ export default function UsersProfileScreen() {
       }
   
       const user = JSON.parse(userString);
-      const email = user.email || user.userEmail || user.User_email || user.emailAddress || user.user_email;
-      
-      console.log('Email extraction attempts:', {
-        'user.email': user.email,
-        'user.userEmail': user.userEmail,
-        'user.User_email': user.User_email,
-        'user.emailAddress': user.emailAddress,
-        'user.user_email': user.user_email,
-        'final_email': email
-      });
+      const email = extractEmail(user);
+  
+
       
       if (!email || email === 'undefined' || email === 'null') {
         console.error('No valid email found in user object:', user);
@@ -58,11 +57,9 @@ export default function UsersProfileScreen() {
         setLoading(false);
         return;
       }
-      
-      console.log('Using email for API calls:', email);
+
 
       try {
-        console.log('Calling getProfile with email:', email);
         const profileResponse = await getProfile(email);
         if (profileResponse.status === 200) {
           setProfileData(profileResponse.data.profile);

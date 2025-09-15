@@ -56,17 +56,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     name = models.CharField(_('Full Name'), max_length=150)
     email = models.EmailField(_('Email Address'), unique=True)
     
-    # Verification fields
+  
     otp_secret = models.CharField(max_length=128, null=True, blank=True)
     otp_created_at = models.DateTimeField(null=True, blank=True)
     otp_expires_at = models.DateTimeField(null=True, blank=True)
     
-    # Status flags
+ 
     is_verified = models.BooleanField(_('Verified'), default=False)
     is_active = models.BooleanField(_('Active'), default=True)
     is_staff = models.BooleanField(_('Staff status'), default=False)
     
-    # Timestamps
+ 
     date_joined = models.DateTimeField(_('Date joined'), auto_now_add=True)
     last_login = models.DateTimeField(_('Last login'), null=True, blank=True)
     
@@ -131,18 +131,16 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class Admin(models.Model):
-    """
-    Admin model to store admin accounts separately from regular users.
-    """
+
     name = models.CharField(_('Full Name'), max_length=150)
     email = models.EmailField(_('Email Address'), unique=True)
     password = models.CharField(_('Password'), max_length=128)
     
-    # Status flags
+
     is_active = models.BooleanField(_('Active'), default=True)
     is_superuser = models.BooleanField(_('Superuser'), default=False)
     
-    # Timestamps
+   
     date_joined = models.DateTimeField(_('Date joined'), auto_now_add=True)
     last_login = models.DateTimeField(_('Last login'), null=True, blank=True)
     
@@ -169,7 +167,7 @@ class Admin(models.Model):
             self.email = self.email.lower()
     
     def set_password(self, raw_password):
-        """Hash and set the password."""
+     
         from django.contrib.auth.hashers import make_password
         self.password = make_password(raw_password)
     
@@ -269,7 +267,7 @@ class Profile(models.Model):
         verbose_name_plural = _('Profiles')
     
     def clean(self):
-        """Custom validation for the Profile model."""
+      
         from django.core.exceptions import ValidationError
         import re
         
@@ -295,7 +293,7 @@ class Profile(models.Model):
                     'last_name': 'Last name should only contain letters and spaces'
                 })
         
-        # Validate city name
+
         if self.city:
             if not re.match(r'^[a-zA-Z\s]+$', self.city):
                 raise ValidationError({
@@ -303,7 +301,7 @@ class Profile(models.Model):
                 })
     
     def save(self, *args, **kwargs):
-        """Override save to call clean validation."""
+      
         self.clean()
         super().save(*args, **kwargs)
     
@@ -312,16 +310,14 @@ class Profile(models.Model):
     
     @property
     def full_name(self):
-        """Returns the full name of the user."""
+       
         if self.first_name and self.last_name:
             return f"{self.first_name} {self.last_name}"
         return self.first_name or self.last_name or self.user.name
 
 
 class DonationRequest(models.Model):
-    """
-    Model to track blood donation requests between users (needers) and donors.
-    """
+  
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('user_accepted', 'User Accepted'),
@@ -336,14 +332,12 @@ class DonationRequest(models.Model):
     requester = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
-        related_name='donation_requests_made',
-        help_text='User who needs blood'
+        related_name='donation_requests_made'
     )
     donor = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
-        related_name='donation_requests_received',
-        help_text='Donor who can provide blood'
+        related_name='donation_requests_received'
     )
     blood_group = models.CharField(
         _('Blood Group'), 
@@ -357,42 +351,36 @@ class DonationRequest(models.Model):
             ('O-', 'O-'),
             ('AB+', 'AB+'),
             ('AB-', 'AB-')
-        ],
-        help_text='Required blood group'
+        ]
     )
     status = models.CharField(
         _('Status'),
         max_length=20,
         choices=STATUS_CHOICES,
-        default='pending',
-        help_text='Current status of the donation request'
+        default='pending'
     )
     user_response = models.BooleanField(
         _('User Response'),
         null=True,
-        blank=True,
-        help_text='True if user accepts, False if declines, None if no response'
+        blank=True
     )
     donor_response = models.BooleanField(
         _('Donor Response'),
         null=True,
-        blank=True,
-        help_text='True if donor accepts, False if declines, None if no response'
+        blank=True
     )
 
     notes = models.TextField(
         _('Notes'),
         blank=True,
-        null=True,
-        help_text='Additional notes or comments about the donation request'
+        null=True
     )
     created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
     expires_at = models.DateTimeField(
         _('Expires At'),
         null=True,
-        blank=True,
-        help_text='When this request expires'
+        blank=True
     )
     
     class Meta:
@@ -429,9 +417,7 @@ class DonationRequest(models.Model):
 
 
 class CallLog(models.Model):
-    """
-    Model to track call logs between users and donors.
-    """
+ 
     CALL_STATUS_CHOICES = [
         ('initiated', 'Initiated'),
         ('answered', 'Answered'),
@@ -510,6 +496,16 @@ class CallLog(models.Model):
         blank=True,
         help_text='When donor responded via email'
     )
+    call_method = models.CharField(
+        _('Call Method'),
+        max_length=10,
+        choices=[
+            ('dialer', 'Phone Dialer'),
+            ('whatsapp', 'WhatsApp Call'),
+        ],
+        default='dialer',
+        help_text='Method used to make the call'
+    )
     created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
     
@@ -539,28 +535,23 @@ class MonthlyDonationTracker(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='monthly_trackers',
-        help_text='User whose monthly donations are being tracked'
+        related_name='monthly_trackers'
     )
     month = models.DateField(
-        _('Month'),
-        help_text='Month being tracked (YYYY-MM-01 format)'
+        _('Month')
     )
     completed_calls_count = models.PositiveIntegerField(
         _('Completed Calls Count'),
-        default=0,
-        help_text='Number of confirmed calls completed this month'
+        default=0
     )
     monthly_goal_completed = models.BooleanField(
         _('Monthly Goal Completed'),
-        default=False,
-        help_text='Whether the monthly goal of 3 calls has been completed'
+        default=False
     )
     goal_completed_at = models.DateTimeField(
         _('Goal Completed At'),
         null=True,
-        blank=True,
-        help_text='When the monthly goal was completed'
+        blank=True
     )
     created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
@@ -595,13 +586,12 @@ class MonthlyDonationTracker(models.Model):
         self.completed_calls_count = 0
         self.monthly_goal_completed = False
         self.goal_completed_at = None
-        
-        # Unblock the user for the new month if they were blocked
+       
         if not self.user.is_active:
             self.user.is_active = True
             self.user.save()
             
-            # Send unblock notification email
+      
             if was_blocked:
                 self._send_unblock_email_notification()
         
@@ -614,7 +604,6 @@ class MonthlyDonationTracker(models.Model):
         if date is None:
             date = timezone.now().date()
         
-        # Get the first day of the month
         month_start = date.replace(day=1)
         
         previous_trackers = cls.objects.filter(
@@ -652,7 +641,6 @@ def handle_monthly_reset(sender, instance, created, **kwargs):
         previous_month = (current_month.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
         
         try:
-            # Check if user was blocked in previous month
             prev_tracker = MonthlyDonationTracker.objects.get(
                 user=instance.user,
                 month=previous_month,
@@ -660,15 +648,12 @@ def handle_monthly_reset(sender, instance, created, **kwargs):
                 completed_calls_count__gte=3
             )
             
-            # If user was blocked, ensure current tracker is reset
             if instance.monthly_goal_completed or instance.completed_calls_count > 0:
                 instance.reset_for_new_month()
                 
                 
                 month_year = current_month.strftime('%B %Y')
                 _send_unblock_email_notification(instance.user, month_year)
-                
-                # Log the automatic reset
                 print(f"Auto-reset: User {instance.user.email} unblocked for {month_year}")
                 
         except MonthlyDonationTracker.DoesNotExist:

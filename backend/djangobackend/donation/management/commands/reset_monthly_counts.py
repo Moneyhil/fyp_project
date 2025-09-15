@@ -39,8 +39,7 @@ class Command(BaseCommand):
             target_month = timezone.now().date().replace(day=1)
         
         self.stdout.write(f'Processing monthly reset for: {target_month.strftime("%B %Y")}')
-        
-        # Find all users who were blocked in previous months
+  
         previous_month = target_month - timedelta(days=1)
         previous_month_start = previous_month.replace(day=1)
         
@@ -58,7 +57,7 @@ class Command(BaseCommand):
         for prev_tracker in blocked_users_previous_month:
             user = prev_tracker.user
             
-            # Get or create tracker for current month
+
             current_tracker, created = MonthlyDonationTracker.get_or_create_for_user_month(
                 user=user,
                 date=target_month
@@ -70,7 +69,7 @@ class Command(BaseCommand):
                     f'Created new tracker for {user.email} - {target_month.strftime("%B %Y")}'
                 )
             else:
-                # Check if this tracker needs to be reset
+                
                 if current_tracker.monthly_goal_completed and not options['force']:
                     self.stdout.write(
                         f'Skipping {user.email} - already completed goal this month'
@@ -79,8 +78,7 @@ class Command(BaseCommand):
                 
                 if not options['dry_run']:
                     current_tracker.reset_for_new_month()
-                    
-                    # Send email notification
+                  
                     month_year = target_month.strftime('%B %Y')
                     self._send_unblock_email(user, month_year)
                     
@@ -106,7 +104,7 @@ class Command(BaseCommand):
                 if not options['dry_run']:
                     tracker.reset_for_new_month()
                     
-                    # Send email notification
+                 
                     month_year = target_month.strftime('%B %Y')
                     self._send_unblock_email(tracker.user, month_year)
                     
@@ -134,7 +132,7 @@ class Command(BaseCommand):
                 )
             )
         
-        # Show current status
+   
         current_blocked = MonthlyDonationTracker.objects.filter(
             month=target_month,
             monthly_goal_completed=True,
